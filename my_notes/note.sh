@@ -243,3 +243,9 @@ module_test: loading out-of-tree module taints kernel.
 [root@myQEMU module_test]# rmmod module_test.ko 
 ---module_test exit...
 [root@myQEMU module_test]# 
+
+
+
+用gdb调试内核：
+sudo apt-get install gdb-multiarch
+
