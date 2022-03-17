@@ -398,17 +398,17 @@ SYM_FUNC_END(idmap_kpti_install_ng_mappings)
  * Output:
  *	Return in x0 the value of the SCTLR_EL1 register.
  */
-	.pushsection ".idmap.text", "awx"
+	.pushsection ".idmap.text", "awx"  ///把__cpu_setup连接到.idmap.text段
 SYM_FUNC_START(__cpu_setup)
-	tlbi	vmalle1				// Invalidate local TLB
-	dsb	nsh
+	tlbi	vmalle1 			// Invalidate local TLB  ///本地TLB无效
+	dsb nsh 											 ///确保tlbi执行完
 
-	mov	x1, #3 << 20
-	msr	cpacr_el1, x1			// Enable FP/ASIMD
-	mov	x1, #1 << 12			// Reset mdscr_el1 and disable
-	msr	mdscr_el1, x1			// access to the DCC from EL0
-	isb					// Unmask debug exceptions now,
-	enable_dbg				// since this is per-cpu
+	mov x1, #3 << 20
+	msr cpacr_el1, x1			// Enable FP/ASIMD		 ///设定EL0,EL1可以访问浮点单元，SIMD单元
+	mov x1, #1 << 12			// Reset mdscr_el1 and disable
+	msr mdscr_el1, x1			// access to the DCC from EL0
+	isb 				// Unmask debug exceptions now,
+	enable_dbg				// since this is per-cpu   ///打开PSATE调试功能
 	reset_pmuserenr_el0 x1			// Disable PMU access from EL0
 	reset_amuserenr_el0 x1			// Disable AMU access from EL0
 
@@ -417,8 +417,10 @@ SYM_FUNC_START(__cpu_setup)
 	 * below depending on detected CPU features.
 	 */
 	mair	.req	x17
-	tcr	.req	x16
+	tcr .req	x16
 	mov_q	mair, MAIR_EL1_SET
+	
+	///设置TCR寄存器，TCR用于管理页表映射
 	mov_q	tcr, TCR_TxSZ(VA_BITS) | TCR_CACHE_FLAGS | TCR_SMP_FLAGS | \
 			TCR_TG_FLAGS | TCR_KASLR_FLAGS | TCR_ASID16 | \
 			TCR_TBI0 | TCR_A1 | TCR_KASAN_SW_FLAGS
@@ -428,14 +430,14 @@ SYM_FUNC_START(__cpu_setup)
 	 * Update MAIR_EL1, GCR_EL1 and TFSR*_EL1 if MTE is supported
 	 * (ID_AA64PFR1_EL1[11:8] > 1).
 	 */
-	mrs	x10, ID_AA64PFR1_EL1
+	mrs x10, ID_AA64PFR1_EL1
 	ubfx	x10, x10, #ID_AA64PFR1_MTE_SHIFT, #4
-	cmp	x10, #ID_AA64PFR1_MTE
+	cmp x10, #ID_AA64PFR1_MTE
 	b.lt	1f
 
 	/* Normal Tagged memory type at the corresponding MAIR index */
-	mov	x10, #MAIR_ATTR_NORMAL_TAGGED
-	bfi	mair, x10, #(8 *  MT_NORMAL_TAGGED), #8
+	mov x10, #MAIR_ATTR_NORMAL_TAGGED
+	bfi mair, x10, #(8 *  MT_NORMAL_TAGGED), #8
 
 	mov	x10, #KERNEL_GCR_EL1
 	msr_s	SYS_GCR_EL1, x10
@@ -446,10 +448,10 @@ SYM_FUNC_START(__cpu_setup)
 	 * pseudorandom numbers. As RGSR_EL1 is UNKNOWN out of reset, we
 	 * must initialize it.
 	 */
-	mrs	x10, CNTVCT_EL0
+	mrs x10, CNTVCT_EL0
 	ands	x10, x10, #SYS_RGSR_EL1_SEED_MASK
 	csinc	x10, x10, xzr, ne
-	lsl	x10, x10, #SYS_RGSR_EL1_SEED_SHIFT
+	lsl x10, x10, #SYS_RGSR_EL1_SEED_SHIFT
 	msr_s	SYS_RGSR_EL1, x10
 
 	/* clear any pending tag check faults in TFSR*_EL1 */
@@ -465,38 +467,39 @@ SYM_FUNC_START(__cpu_setup)
 
 #ifdef CONFIG_ARM64_VA_BITS_52
 	ldr_l		x9, vabits_actual
-	sub		x9, xzr, x9
-	add		x9, x9, #64
+	sub 	x9, xzr, x9
+	add 	x9, x9, #64
 	tcr_set_t1sz	tcr, x9
 #else
-	ldr_l		x9, idmap_t0sz
+	ldr_l		x9, idmap_t0sz	
 #endif
 	tcr_set_t0sz	tcr, x9
 
 	/*
 	 * Set the IPS bits in TCR_EL1.
 	 */
-	tcr_compute_pa_size tcr, #TCR_IPS_SHIFT, x5, x6
+	tcr_compute_pa_size tcr, #TCR_IPS_SHIFT, x5, x6  ///IPS域，设置位宽
 #ifdef CONFIG_ARM64_HW_AFDBM
 	/*
 	 * Enable hardware update of the Access Flags bit.
 	 * Hardware dirty bit management is enabled later,
 	 * via capabilities.
 	 */
-	mrs	x9, ID_AA64MMFR1_EL1
-	and	x9, x9, #0xf
-	cbz	x9, 1f
-	orr	tcr, tcr, #TCR_HA		// hardware Access flag update
+	mrs x9, ID_AA64MMFR1_EL1
+	and x9, x9, #0xf
+	cbz x9, 1f
+	orr tcr, tcr, #TCR_HA		// hardware Access flag update
 1:
 #endif	/* CONFIG_ARM64_HW_AFDBM */
-	msr	mair_el1, mair
-	msr	tcr_el1, tcr
+	msr mair_el1, mair
+	msr tcr_el1, tcr
 	/*
 	 * Prepare SCTLR
 	 */
-	mov_q	x0, INIT_SCTLR_EL1_MMU_ON
-	ret					// return to head.S
+	mov_q	x0, INIT_SCTLR_EL1_MMU_ON  ///返回值，下个函数__enable_mmu的参数
+	ret 				// return to head.S
 
 	.unreq	mair
 	.unreq	tcr
 SYM_FUNC_END(__cpu_setup)
+

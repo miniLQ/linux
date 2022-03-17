@@ -68,8 +68,8 @@
 
 #include "image.h"
 
-OUTPUT_ARCH(aarch64)
-ENTRY(_text)
+OUTPUT_ARCH(aarch64)  ///编译目标文件格式为aarch64
+ENTRY(_text)          ///内核入口地址
 
 jiffies = jiffies_64;
 
@@ -126,7 +126,13 @@ PECOFF_FILE_ALIGNMENT = 0x200;
 #else
 #define PECOFF_EDATA_PADDING
 #endif
-
+/***************************************************************************
+ * 内核的内存布局：
+ *
+ * 包括代码段(.text)，只读数据段(.rodata)，初始化数据段(.init.), .bss段等
+ * 几个常见的地址在arch/arm64/mm/init.c加了打印
+ *
+ **************************************************************************/
 SECTIONS
 {
 	/*
@@ -141,10 +147,10 @@ SECTIONS
 		*(.dynsym .dynstr .hash .gnu.hash)
 	}
 
-	. = KIMAGE_VADDR;
+	. = KIMAGE_VADDR;  ///内核的起始链接地址，
 
 	.head.text : {
-		_text = .;
+		_text = .;     ///内核入口地址
 		HEAD_TEXT
 	}
 	.text : ALIGN(SEGMENT_ALIGN) {	/* Real text segment		*/
