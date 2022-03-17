@@ -1,62 +1,3 @@
-/*
- * The following fragment of code is executed with the MMU enabled.
- *
- *   x0 = __PHYS_OFFSET
- */
-SYM_FUNC_START_LOCAL(__primary_switched)
-	adrp	x4, init_thread_union      ///init_thread_union指向thread_union数据结构，其中包含系统第一个进程(init进程)的内核栈
-	add	sp, x4, #THREAD_SIZE           ///sp指向栈顶
-	adr_l	x5, init_task
-	msr	sp_el0, x5			// Save thread_info  ///sp_el0在EL1模式下无效，这里用来存init进程的task_struct指针是合适的
-
-	adr_l	x8, vectors			// load VBAR_EL1 with virtual  
-	msr	vbar_el1, x8			// vector table address       ///填充异常向量表地址
-	isb 													  ///确保以上指令执行完
-
-	stp	xzr, x30, [sp, #-16]!
-	mov	x29, sp                                   ///sp存放到x29  
-
-#ifdef CONFIG_SHADOW_CALL_STACK
-	adr_l	scs_sp, init_shadow_call_stack	// Set shadow call stack
-#endif
-
-	str_l	x21, __fdt_pointer, x5		// Save FDT pointer ///保存设备树的地址
-
-	ldr_l	x4, kimage_vaddr		// Save the offset between
-	sub	x4, x4, x0			// the kernel virtual and
-	str_l	x4, kimage_voffset, x5		// physical mappings
-
-	// Clear BSS
-	///清除未初始化的数据段
-	adr_l	x0, __bss_start
-	mov	x1, xzr
-	adr_l	x2, __bss_stop
-	sub	x2, x2, x0
-	bl	__pi_memset
-	dsb	ishst				// Make zero page visible to PTW
-
-#if defined(CONFIG_KASAN_GENERIC) || defined(CONFIG_KASAN_SW_TAGS)
-	bl	kasan_early_init
-#endif
-	mov	x0, x21				// pass FDT address in x0
-	bl	early_fdt_map			// Try mapping the FDT early
-	bl	init_feature_override		// Parse cpu feature overrides
-#ifdef CONFIG_RANDOMIZE_BASE
-	tst	x23, ~(MIN_KIMG_ALIGN - 1)	// already running randomized?
-	b.ne	0f
-	bl	kaslr_early_init		// parse FDT for KASLR options
-	cbz	x0, 0f				// KASLR disabled? just proceed
-	orr	x23, x23, x0			// record KASLR offset
-	ldp	x29, x30, [sp], #16		// we must enable KASLR, return
-	ret					// to __primary_switch()
-0:
-#endif
-	bl	switch_to_vhe			// Prefer VHE if possible
-	add	sp, sp, #16
-	mov	x29, #0
-	mov	x30, #0              //sp指向内核栈顶
-	b	start_kernel         //跳转到C语言入口
-SYM_FUNC_END(__primary_switched)
 //============================================================================================
 /*
  * for read kernel source
@@ -75,91 +16,64 @@ add-symbol-file vmlinux 0x40081000 -s .head.text 0x40080000 -s .init.text 0x41bb
 
 qemu-system-aarch64 -machine virt -cpu cortex-a57 -machine type=virt -m 1024 -smp 1 -kernel arch/arm64/boot/Image --append "rdinit=/linuxrc root=/dev/vda rw console=ttyAMA0 loglevel=8"  -nographic --fsdev local,id=kmod_dev,path=$PWD/k_shared,security_model=none -device virtio-9p-device,fsdev=kmod_dev,mount_tag=kmod_mount -S -s
 
-/*
- * The following fragment of code is executed with the MMU enabled.
- *
- *   x0 = __PHYS_OFFSET
- */
-SYM_FUNC_START_LOCAL(__primary_switched)
-	adrp	x4, init_thread_union
-	add	sp, x4, #THREAD_SIZE
-	adr_l	x5, init_task
-	msr	sp_el0, x5			// Save thread_info
 
-	adr_l	x8, vectors			// load VBAR_EL1 with virtual
-	msr	vbar_el1, x8			// vector table address
-	isb
-
-	stp	xzr, x30, [sp, #-16]!
-	mov	x29, sp
-
-#ifdef CONFIG_SHADOW_CALL_STACK
-	adr_l	scs_sp, init_shadow_call_stack	// Set shadow call stack
-#endif
-
-	str_l	x21, __fdt_pointer, x5		// Save FDT pointer
-
-	ldr_l	x4, kimage_vaddr		// Save the offset between
-	sub	x4, x4, x0			// the kernel virtual and
-	str_l	x4, kimage_voffset, x5		// physical mappings
-
-	// Clear BSS
-	adr_l	x0, __bss_start
-	mov	x1, xzr
-	adr_l	x2, __bss_stop
-	sub	x2, x2, x0
-	bl	__pi_memset
-	dsb	ishst				// Make zero page visible to PTW
-
-#if defined(CONFIG_KASAN_GENERIC) || defined(CONFIG_KASAN_SW_TAGS)
-	bl	kasan_early_init
-#endif
-	mov	x0, x21				// pass FDT address in x0
-	bl	early_fdt_map			// Try mapping the FDT early
-	bl	init_feature_override		// Parse cpu feature overrides
-#ifdef CONFIG_RANDOMIZE_BASE
-	tst	x23, ~(MIN_KIMG_ALIGN - 1)	// already running randomized?
-	b.ne	0f
-	bl	kaslr_early_init		// parse FDT for KASLR options
-	cbz	x0, 0f				// KASLR disabled? just proceed
-	orr	x23, x23, x0			// record KASLR offset
-	ldp	x29, x30, [sp], #16		// we must enable KASLR, return
-	ret					// to __primary_switch()
-0:
-#endif
-	bl	switch_to_vhe			// Prefer VHE if possible
-	add	sp, sp, #16
-	mov	x29, #0
-	mov	x30, #0
-	b	start_kernel
-SYM_FUNC_END(__primary_switched)
+内存三大数据结构,node,zone,page
+1.pglist_data
 
 
+contig_page_data
+
+2.zone
+3.page 
+mem_map， 存放page,应
+初始化在
+
+alloc_node_mem_map
+
+mem_map，与物理页面一一对
+
+由page可以找到pfn
+	__page_to_pfn(pg)
+
+由pfn可以找到page
+__pfn_to_page(pfn)
 
 
+伙伴系统：
+迁移类型，解决碎片化问题
+	MIGRATE_UNMOVABLE :在内存中位置固定，不能随意移动，比如内核分配的内存
+	MIGRATE_MOVABLE：可以随意移动，用户态app分配的内存；
+	MIGRATE_RECLAIMABLE： 不能移动，但可以回收的内存，比如文件映射缓存；
+在伙伴系统的空闲链表中，每个链表都根据移动类型划分多个链表；
+
+迁移类型的最小单位是pageblock, 2~order
+
+set_pageblock_migratetype(struct page * page, int migratetype)
+get_pageblock_migratetype(page)
+
+两个块大小相同；
+两个块地址连续；
+两个块必须是同一个大块分离出来的；
+
+页面分配器是基于zone设计的，
+系统会优先使用ZONE_HIGHMEM, 然后才是ZONE_NORMAL;
+从分配掩码中，知道从那个zone分配内存：
+	for_each_zone_zonelist_nodemask(zone, z, zlist, highidx, nodemask)
+从分配掩码中，分配器知道从哪个迁移类型中分配内存；
+gfpflags_to_migratetype
 
 
+slab:
+	kmem_cache_create(const char * name, unsigned int size, unsigned int align, slab_flags_t flags, void(* ctor)(void *))
+		kmem_cache_destroy(struct kmem_cache * s)
+		kmem_cache_alloc(struct kmem_cache * cachep, gfp_t flags)
+		kmem_cache_free(struct kmem_cache * c, void * b)
+kmem_cache
 
 
+kmalloc函数
+核心是slab机制，按照内存的2的order次方来创建多个slab描述符；
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+void *kmalloc(size_t size, gfp_t flags)
+void kfree(const void *)
 
