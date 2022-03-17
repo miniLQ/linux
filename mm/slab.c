@@ -182,7 +182,12 @@ typedef unsigned short freelist_idx_t;
  * footprint.
  *
  */
-struct array_cache {
+ /*
+  * 本地对象缓存池
+  * 让对象尽可能的使用在同一个CPU上的cache，提高效率
+  * 不需要额外自旋锁，避免锁竞争；
+  */
+struct array_cache { 
 	unsigned int avail;
 	unsigned int limit;
 	unsigned int batchcount;

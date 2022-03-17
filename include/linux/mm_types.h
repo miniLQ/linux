@@ -66,9 +66,11 @@ struct mem_cgroup;
 #else
 #define _struct_page_alignment
 #endif
-
+/*
+ * page描述一个物理页面
+ */
 struct page {
-	unsigned long flags;		/* Atomic flags, some possibly
+	unsigned long flags;		/* Atomic flags, some possibly ///页面重要的标志集合
 					 * updated asynchronously */
 	/*
 	 * Five words (20/40 bytes) are available in this union.
@@ -85,8 +87,8 @@ struct page {
 			 */
 			struct list_head lru;
 			/* See page-flags.h for PAGE_MAPPING_FLAGS */
-			struct address_space *mapping;
-			pgoff_t index;		/* Our offset within mapping. */
+			struct address_space *mapping;  ///页面指向的地址空间
+			pgoff_t index;		/* Our offset within mapping. */ ///页面在映射空间的偏移量
 			/**
 			 * @private: Mapping-private opaque data.
 			 * Usually used for buffer_heads if PagePrivate.

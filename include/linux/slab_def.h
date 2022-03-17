@@ -10,41 +10,41 @@
  */
 
 struct kmem_cache {
-	struct array_cache __percpu *cpu_cache;
+	struct array_cache __percpu *cpu_cache;  ///对象缓存池，每个CPU一个
 
 /* 1) Cache tunables. Protected by slab_mutex */
-	unsigned int batchcount;
-	unsigned int limit;
-	unsigned int shared;
+	unsigned int batchcount; ///当本地的对象缓存池为空时，需要从共享缓存池中获取batchcount个对象到本地缓存池
+	unsigned int limit; ///当本地缓存池空闲数目大于limit时，需要释放一些对象
+	unsigned int shared; ///用于多核系统
 
-	unsigned int size;
+	unsigned int size; ///对象的长度
 	struct reciprocal_value reciprocal_buffer_size;
 /* 2) touched by every alloc & free from the backend */
 
-	slab_flags_t flags;		/* constant flags */
+	slab_flags_t flags;		/* constant flags *////对象分配掩码
 	unsigned int num;		/* # of objs per slab */
 
 /* 3) cache_grow/shrink */
 	/* order of pgs per slab (2^n) */
-	unsigned int gfporder;
+	unsigned int gfporder;///一个slab占用多个2的order次方物理页面
 
 	/* force GFP flags, e.g. GFP_DMA */
 	gfp_t allocflags;
 
-	size_t colour;			/* cache colouring range */
+	size_t colour;			/* cache colouring range */ ///表示一个slab有多个cacheline用于着色
 	unsigned int colour_off;	/* colour offset */
 	struct kmem_cache *freelist_cache;
-	unsigned int freelist_size;
+	unsigned int freelist_size;///每个对象要占用1字节来存放freelists
 
 	/* constructor func */
 	void (*ctor)(void *obj);
 
 /* 4) cache creation/removal */
-	const char *name;
+	const char *name;  ///描述符的名称
 	struct list_head list;
 	int refcount;
-	int object_size;
-	int align;
+	int object_size; ///对象实际大小
+	int align;       ///对齐长度
 
 /* 5) statistics */
 #ifdef CONFIG_DEBUG_SLAB
@@ -84,7 +84,7 @@ struct kmem_cache {
 	unsigned int useroffset;	/* Usercopy region offset */
 	unsigned int usersize;		/* Usercopy region size */
 
-	struct kmem_cache_node *node[MAX_NUMNODES];
+	struct kmem_cache_node *node[MAX_NUMNODES];///用于NUMA系统
 };
 
 static inline void *nearest_obj(struct kmem_cache *cache, struct page *page,

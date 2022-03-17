@@ -491,7 +491,7 @@ struct zone {
 	/* Read-mostly fields */
 
 	/* zone watermarks, access with *_wmark_pages(zone) macros */
-	unsigned long _watermark[NR_WMARK];
+	unsigned long _watermark[NR_WMARK];  ///水位线，包括高水位，低水位，最低水位
 	unsigned long watermark_boost;
 
 	unsigned long nr_reserved_highatomic;
@@ -505,13 +505,15 @@ struct zone {
 	 * recalculated at runtime if the sysctl_lowmem_reserve_ratio sysctl
 	 * changes.
 	 */
-	long lowmem_reserve[MAX_NR_ZONES];
+	long lowmem_reserve[MAX_NR_ZONES];///防止页面分配器过度使用低端zone的内存
 
 #ifdef CONFIG_NUMA
 	int node;
 #endif
-	struct pglist_data	*zone_pgdat;
-	struct per_cpu_pages	__percpu *per_cpu_pageset;
+	struct pglist_data	*zone_pgdat;    ///指向内存节点
+
+	struct per_cpu_pages	__percpu *per_cpu_pageset; ///用于维护每个CPU的页面，减少自旋锁的竞争
+
 	struct per_cpu_zonestat	__percpu *per_cpu_zonestats;
 	/*
 	 * the high and batch values are copied to individual pagesets for
@@ -529,7 +531,7 @@ struct zone {
 #endif /* CONFIG_SPARSEMEM */
 
 	/* zone_start_pfn == zone_start_paddr >> PAGE_SHIFT */
-	unsigned long		zone_start_pfn;
+	unsigned long		zone_start_pfn;  ///zone的起始页帧号
 
 	/*
 	 * spanned_pages is the total pages spanned by the zone, including
@@ -573,9 +575,9 @@ struct zone {
 	 * mem_hotplug_begin/end(). Any reader who can't tolerant drift of
 	 * present_pages should get_online_mems() to get a stable value.
 	 */
-	atomic_long_t		managed_pages;
-	unsigned long		spanned_pages;
-	unsigned long		present_pages;
+	atomic_long_t		managed_pages;   ///zone中被伙伴系统管理的页面数量
+	unsigned long		spanned_pages;   ///zone包含的页面数量
+	unsigned long		present_pages;   ///zone实际管理的页面数量
 #if defined(CONFIG_MEMORY_HOTPLUG)
 	unsigned long		present_early_pages;
 #endif
@@ -605,16 +607,16 @@ struct zone {
 	ZONE_PADDING(_pad1_)
 
 	/* free areas of different sizes */
-	struct free_area	free_area[MAX_ORDER];
+	struct free_area	free_area[MAX_ORDER];   ///伙伴系统所需的核心数据结构，管理空闲页块(page block)链表的数组
 
 	/* zone flags, see below */
 	unsigned long		flags;
 
 	/* Primarily protects free_area */
-	spinlock_t		lock;
+	spinlock_t		lock;                       ///热门锁，要防止高速缓存造成的内存颠簸
 
 	/* Write-intensive fields used by compaction and vmstats. */
-	ZONE_PADDING(_pad2_)
+	ZONE_PADDING(_pad2_)                        ///填充cacheline，防止内存颠簸
 
 	/*
 	 * When free pages are below this point, additional steps are taken
@@ -653,7 +655,7 @@ struct zone {
 
 	ZONE_PADDING(_pad3_)
 	/* Zone statistics */
-	atomic_long_t		vm_stat[NR_VM_ZONE_STAT_ITEMS];
+	atomic_long_t		vm_stat[NR_VM_ZONE_STAT_ITEMS]; ///zone计数值
 	atomic_long_t		vm_numa_event[NR_VM_NUMA_EVENT_ITEMS];
 } ____cacheline_internodealigned_in_smp;
 
@@ -796,6 +798,14 @@ struct deferred_split {
  *
  * Memory statistics and page replacement data structures are maintained on a
  * per-zone basis.
+ */
+
+/*
+ * 一个pglist_data，对应一个内存节点，是最顶层的内存管理数据结构
+ * 主要包括三部分：
+ * 1.描述zone
+ * 2.描述内存节点的信息；
+ * 3.和页面回收相关；
  */
 typedef struct pglist_data {
 	/*

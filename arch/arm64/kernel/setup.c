@@ -307,7 +307,7 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	early_fixmap_init();
 	early_ioremap_init();
 
-	setup_machine_fdt(__fdt_pointer);
+	setup_machine_fdt(__fdt_pointer);///读设备树文件
 
 	/*
 	 * Initialise the static keys early as they may be enabled by the

@@ -844,7 +844,7 @@ static void __init mm_init(void)
 	kfence_alloc_pool();
 	report_meminit();
 	stack_depot_init();
-	mem_init();
+	mem_init(); //初始化物理内存，加入伙伴系统
 	mem_init_print_info();
 	/* page_owner must be initialized after buddy is ready */
 	page_ext_init_flatmem_late();

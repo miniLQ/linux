@@ -419,7 +419,7 @@ void __init mem_init(void)
 	set_max_mapnr(max_pfn - PHYS_PFN_OFFSET);
 
 	/* this will put all unused low memory onto the freelists */
-	memblock_free_all();
+	memblock_free_all();  ///所有未使用页面，都加入伙伴系统的freelists
 /*
  * 打印内存布局
  */
