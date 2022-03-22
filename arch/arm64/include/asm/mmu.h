@@ -72,7 +72,7 @@ extern void mark_linear_text_alias_ro(void);
 extern bool kaslr_requires_kpti(void);
 
 #define INIT_MM_CONTEXT(name)	\
-	.pgd = init_pg_dir,
+	.pgd = init_pg_dir,  ///启动时默认地址，启动后会改为swapper_pg_dir
 
 #endif	/* !__ASSEMBLY__ */
 #endif

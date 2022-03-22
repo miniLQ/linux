@@ -951,7 +951,7 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	page_address_init();
 	pr_notice("%s", linux_banner);
 	early_security_init();
-	setup_arch(&command_line);
+	setup_arch(&command_line);  ///建立固定映射
 	setup_boot_config();
 	setup_command_line(command_line);
 	setup_nr_cpu_ids();

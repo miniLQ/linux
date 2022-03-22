@@ -157,11 +157,11 @@ static void init_pte(pmd_t *pmdp, unsigned long addr, unsigned long end,
 {
 	pte_t *ptep;
 
-	ptep = pte_set_fixmap_offset(pmdp, addr);
+	ptep = pte_set_fixmap_offset(pmdp, addr);      ///转换成虚拟地址，CPU才能访问
 	do {
 		pte_t old_pte = READ_ONCE(*ptep);
 
-		set_pte(ptep, pfn_pte(__phys_to_pfn(phys), prot));
+		set_pte(ptep, pfn_pte(__phys_to_pfn(phys), prot));  ///将页帧号，填充pte表项
 
 		/*
 		 * After the PTE entry has been populated once, we
@@ -193,7 +193,7 @@ static void alloc_init_cont_pte(pmd_t *pmdp, unsigned long addr,
 		if (flags & NO_EXEC_MAPPINGS)
 			pmdval |= PMD_TABLE_PXN;
 		BUG_ON(!pgtable_alloc);
-		pte_phys = pgtable_alloc(PAGE_SHIFT);
+		pte_phys = pgtable_alloc(PAGE_SHIFT);   ///动态分配pte页表，填充pmd表项
 		__pmd_populate(pmdp, pte_phys, pmdval);
 		pmd = READ_ONCE(*pmdp);
 	}
@@ -222,7 +222,7 @@ static void init_pmd(pud_t *pudp, unsigned long addr, unsigned long end,
 	unsigned long next;
 	pmd_t *pmdp;
 
-	pmdp = pmd_set_fixmap_offset(pudp, addr);
+	pmdp = pmd_set_fixmap_offset(pudp, addr);   ///转换成虚拟地址，CPU才能访问
 	do {
 		pmd_t old_pmd = READ_ONCE(*pmdp);
 
@@ -271,7 +271,7 @@ static void alloc_init_cont_pmd(pud_t *pudp, unsigned long addr,
 		if (flags & NO_EXEC_MAPPINGS)
 			pudval |= PUD_TABLE_PXN;
 		BUG_ON(!pgtable_alloc);
-		pmd_phys = pgtable_alloc(PMD_SHIFT);
+		pmd_phys = pgtable_alloc(PMD_SHIFT);     ///动态分配pmd页表，填充pud表项 
 		__pud_populate(pudp, pmd_phys, pudval);
 		pud = READ_ONCE(*pudp);
 	}
@@ -322,13 +322,13 @@ static void alloc_init_pud(pgd_t *pgdp, unsigned long addr, unsigned long end,
 		if (flags & NO_EXEC_MAPPINGS)
 			p4dval |= P4D_TABLE_PXN;
 		BUG_ON(!pgtable_alloc);
-		pud_phys = pgtable_alloc(PUD_SHIFT);
+		pud_phys = pgtable_alloc(PUD_SHIFT);   ///动态分配一个pud，填充pgd表项
 		__p4d_populate(p4dp, pud_phys, p4dval);
 		p4d = READ_ONCE(*p4dp);
 	}
 	BUG_ON(p4d_bad(p4d));
 
-	pudp = pud_set_fixmap_offset(p4dp, addr);
+	pudp = pud_set_fixmap_offset(p4dp, addr);  ///pgd表项保存的是pud的物理地址，要线转换成虚拟地址，CPU才能访问
 	do {
 		pud_t old_pud = READ_ONCE(*pudp);
 
@@ -359,7 +359,7 @@ static void alloc_init_pud(pgd_t *pgdp, unsigned long addr, unsigned long end,
 
 	pud_clear_fixmap();
 }
-
+///依次动态建立各级页表
 static void __create_pgd_mapping(pgd_t *pgdir, phys_addr_t phys,
 				 unsigned long virt, phys_addr_t size,
 				 pgprot_t prot,
@@ -569,21 +569,21 @@ void mark_rodata_ro(void)
 
 	debug_checkwx();
 }
-
+///建立内核段的动态映射
 static void __init map_kernel_segment(pgd_t *pgdp, void *va_start, void *va_end,
 				      pgprot_t prot, struct vm_struct *vma,
 				      int flags, unsigned long vm_flags)
 {
-	phys_addr_t pa_start = __pa_symbol(va_start);
+	phys_addr_t pa_start = __pa_symbol(va_start);   ///获取物理地址
 	unsigned long size = va_end - va_start;
 
 	BUG_ON(!PAGE_ALIGNED(pa_start));
 	BUG_ON(!PAGE_ALIGNED(size));
 
 	__create_pgd_mapping(pgdp, pa_start, (unsigned long)va_start, size, prot,
-			     early_pgtable_alloc, flags);
+			     early_pgtable_alloc, flags);   ///建立内存段映射，用early_pgtable_alloc动态分配
 
-	if (!(vm_flags & VM_NO_GUARD))
+	if (!(vm_flags & VM_NO_GUARD))   ///添加一个页的guard
 		size += PAGE_SIZE;
 
 	vma->addr	= va_start;
@@ -592,7 +592,7 @@ static void __init map_kernel_segment(pgd_t *pgdp, void *va_start, void *va_end,
 	vma->flags	= VM_MAP | vm_flags;
 	vma->caller	= __builtin_return_address(0);
 
-	vm_area_add_early(vma);
+	vm_area_add_early(vma);   ///将VMA添加到内核的vma链表
 }
 
 static int __init parse_rodata(char *arg)
@@ -701,7 +701,7 @@ static void __init map_kernel(pgd_t *pgdp)
 		 * live in the carveout for the swapper_pg_dir. We can simply
 		 * re-use the existing dir for the fixmap.
 		 */
-		set_pgd(pgd_offset_pgd(pgdp, FIXADDR_START),
+		set_pgd(pgd_offset_pgd(pgdp, FIXADDR_START),         ///将init_pg_dir的表项同步到swapper_pg_dir
 			READ_ONCE(*pgd_offset_k(FIXADDR_START)));
 	} else if (CONFIG_PGTABLE_LEVELS > 3) {
 		pgd_t *bm_pgdp;
@@ -728,15 +728,15 @@ static void __init map_kernel(pgd_t *pgdp)
 
 void __init paging_init(void)
 {
-	pgd_t *pgdp = pgd_set_fixmap(__pa_symbol(swapper_pg_dir));
+	pgd_t *pgdp = pgd_set_fixmap(__pa_symbol(swapper_pg_dir));  ///通过固定映射，访问swapper_pg_dir
 
-	map_kernel(pgdp);
-	map_mem(pgdp);
+	map_kernel(pgdp);   ///建立内核的细粒度映射(分别建立内核每个段的动态映射)
+	map_mem(pgdp);      ///建立物理内存的线性映射(可以访问整个物理内存区域)
 
 	pgd_clear_fixmap();
 
 	cpu_replace_ttbr1(lm_alias(swapper_pg_dir));
-	init_mm.pgd = swapper_pg_dir;
+	init_mm.pgd = swapper_pg_dir;  ///切换内核主进程的pgd地址
 
 	memblock_free(__pa_symbol(init_pg_dir),
 		      __pa_symbol(init_pg_end) - __pa_symbol(init_pg_dir));
@@ -1219,8 +1219,8 @@ void __init early_fixmap_init(void)
 	pmd_t *pmdp;
 	unsigned long addr = FIXADDR_START;
 
-	pgdp = pgd_offset_k(addr);
-	p4dp = p4d_offset(pgdp, addr);
+	pgdp = pgd_offset_k(addr);  ///获得pgd页表项
+	p4dp = p4d_offset(pgdp, addr);   
 	p4d = READ_ONCE(*p4dp);
 	if (CONFIG_PGTABLE_LEVELS > 3 &&
 	    !(p4d_none(p4d) || p4d_page_paddr(p4d) == __pa_symbol(bm_pud))) {
@@ -1233,13 +1233,13 @@ void __init early_fixmap_init(void)
 		pudp = pud_offset_kimg(p4dp, addr);
 	} else {
 		if (p4d_none(p4d))
-			__p4d_populate(p4dp, __pa_symbol(bm_pud), P4D_TYPE_TABLE);
-		pudp = fixmap_pud(addr);
+			__p4d_populate(p4dp, __pa_symbol(bm_pud), P4D_TYPE_TABLE);   ///填充p4d表项
+		pudp = fixmap_pud(addr);   ///获得pud表项
 	}
 	if (pud_none(READ_ONCE(*pudp)))
-		__pud_populate(pudp, __pa_symbol(bm_pmd), PUD_TYPE_TABLE);
+		__pud_populate(pudp, __pa_symbol(bm_pmd), PUD_TYPE_TABLE);      ///填充pud表项
 	pmdp = fixmap_pmd(addr);
-	__pmd_populate(pmdp, __pa_symbol(bm_pte), PMD_TYPE_TABLE);
+	__pmd_populate(pmdp, __pa_symbol(bm_pte), PMD_TYPE_TABLE);  		///填充pmd表项
 
 	/*
 	 * The boot-ioremap range spans multiple pmds, for which
@@ -1279,7 +1279,7 @@ void __set_fixmap(enum fixed_addresses idx,
 	ptep = fixmap_pte(addr);
 
 	if (pgprot_val(flags)) {
-		set_pte(ptep, pfn_pte(phys >> PAGE_SHIFT, flags));
+		set_pte(ptep, pfn_pte(phys >> PAGE_SHIFT, flags));   ///填充pte页表
 	} else {
 		pte_clear(&init_mm, addr, ptep);
 		flush_tlb_kernel_range(addr, addr+PAGE_SIZE);
@@ -1288,7 +1288,7 @@ void __set_fixmap(enum fixed_addresses idx,
 
 void *__init fixmap_remap_fdt(phys_addr_t dt_phys, int *size, pgprot_t prot)
 {
-	const u64 dt_virt_base = __fix_to_virt(FIX_FDT);
+	const u64 dt_virt_base = __fix_to_virt(FIX_FDT);   ///获得设备树的虚拟地址i    
 	int offset;
 	void *dt_virt;
 
@@ -1322,7 +1322,7 @@ void *__init fixmap_remap_fdt(phys_addr_t dt_phys, int *size, pgprot_t prot)
 	dt_virt = (void *)dt_virt_base + offset;
 
 	/* map the first chunk so we can read the size from the header */
-	create_mapping_noalloc(round_down(dt_phys, SWAPPER_BLOCK_SIZE),
+	create_mapping_noalloc(round_down(dt_phys, SWAPPER_BLOCK_SIZE),      ///建立映射，页表   的已知的，不能临时分配(因为伙伴系统尚未工作)
 			dt_virt_base, SWAPPER_BLOCK_SIZE, prot);
 
 	if (fdt_magic(dt_virt) != FDT_MAGIC)

@@ -303,11 +303,11 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	 * everything later.
 	 */
 	arm64_use_ng_mappings = kaslr_requires_kpti();
+///注意这里都是创建的静态页表，因为内存子系统尚未建立(伙伴系统还没开始工作)
+	early_fixmap_init();   ///fixmap区映射
+	early_ioremap_init();  ///早期ioremap映射
 
-	early_fixmap_init();
-	early_ioremap_init();
-
-	setup_machine_fdt(__fdt_pointer);///读设备树文件
+	setup_machine_fdt(__fdt_pointer);///设备树映射,读取内存信息后，后面初始化页面分配器(伙伴系统)
 
 	/*
 	 * Initialise the static keys early as they may be enabled by the
@@ -335,9 +335,9 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	if (!efi_enabled(EFI_BOOT) && ((u64)_text % MIN_KIMG_ALIGN) != 0)
 	     pr_warn(FW_BUG "Kernel image misaligned at boot, please fix your bootloader!");
 
-	arm64_memblock_init();
+	arm64_memblock_init();   ///初始化内存页表分配器(建立伙伴系统)
 
-	paging_init();
+	paging_init();   ///建立动态页表
 
 	acpi_table_upgrade();
 

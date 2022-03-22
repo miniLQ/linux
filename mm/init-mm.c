@@ -28,7 +28,7 @@
  */
 struct mm_struct init_mm = {
 	.mm_rb		= RB_ROOT,
-	.pgd		= swapper_pg_dir,
+	.pgd		= swapper_pg_dir,  ///启动后的pgd
 	.mm_users	= ATOMIC_INIT(2),
 	.mm_count	= ATOMIC_INIT(1),
 	.write_protect_seq = SEQCNT_ZERO(init_mm.write_protect_seq),
@@ -38,7 +38,7 @@ struct mm_struct init_mm = {
 	.mmlist		= LIST_HEAD_INIT(init_mm.mmlist),
 	.user_ns	= &init_user_ns,
 	.cpu_bitmap	= CPU_BITS_NONE,
-	INIT_MM_CONTEXT(init_mm)
+	INIT_MM_CONTEXT(init_mm)   ///初始化过程的地址
 };
 
 void setup_initial_init_mm(void *start_code, void *end_code,

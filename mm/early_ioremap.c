@@ -76,7 +76,7 @@ void __init early_ioremap_setup(void)
 			break;
 
 	for (i = 0; i < FIX_BTMAPS_SLOTS; i++)
-		slot_virt[i] = __fix_to_virt(FIX_BTMAP_BEGIN - NR_FIX_BTMAPS*i);
+		slot_virt[i] = __fix_to_virt(FIX_BTMAP_BEGIN - NR_FIX_BTMAPS*i);   ///根据索引，得到虚拟地址
 }
 
 static int __init check_early_ioremap_leak(void)
@@ -148,7 +148,7 @@ __early_ioremap(resource_size_t phys_addr, unsigned long size, pgprot_t prot)
 		if (after_paging_init)
 			__late_set_fixmap(idx, phys_addr, prot);
 		else
-			__early_set_fixmap(idx, phys_addr, prot);
+			__early_set_fixmap(idx, phys_addr, prot);   ///建立虚拟地址到phys_addr的映射
 		phys_addr += PAGE_SIZE;
 		--idx;
 		--nrpages;
@@ -156,7 +156,7 @@ __early_ioremap(resource_size_t phys_addr, unsigned long size, pgprot_t prot)
 	WARN(early_ioremap_debug, "%s(%pa, %08lx) [%d] => %08lx + %08lx\n",
 	     __func__, &phys_addr, size, slot, offset, slot_virt[slot]);
 
-	prev_map[slot] = (void __iomem *)(offset + slot_virt[slot]);
+	prev_map[slot] = (void __iomem *)(offset + slot_virt[slot]);  ///返回实际的虚拟地址
 	return prev_map[slot];
 }
 
