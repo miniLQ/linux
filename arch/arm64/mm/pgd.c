@@ -22,7 +22,7 @@ pgd_t *pgd_alloc(struct mm_struct *mm)
 	gfp_t gfp = GFP_PGTABLE_USER;
 
 	if (PGD_SIZE == PAGE_SIZE)
-		return (pgd_t *)__get_free_page(gfp);
+		return (pgd_t *)__get_free_page(gfp);  ///从伙伴系统分配物理页
 	else
 		return kmem_cache_alloc(pgd_cache, gfp);
 }

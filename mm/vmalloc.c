@@ -2761,7 +2761,7 @@ static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
 {
 	const gfp_t nested_gfp = (gfp_mask & GFP_RECLAIM_MASK) | __GFP_ZERO;
 	unsigned long addr = (unsigned long)area->addr;
-	unsigned long size = get_vm_area_size(area);
+	unsigned long size = get_vm_area_size(area);   ///计算vm_struct包含多少个页面
 	unsigned long array_size;
 	unsigned int nr_small_pages = size >> PAGE_SHIFT;
 	unsigned int page_order;
@@ -2790,7 +2790,7 @@ static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
 		return NULL;
 	}
 
-	area->pages = pages;
+	area->pages = pages;  ///保存已分配页面的page数据结构的指针
 	area->nr_pages = nr_small_pages;
 	set_vm_area_page_order(area, page_shift - PAGE_SHIFT);
 
@@ -2806,7 +2806,7 @@ static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
 		int p;
 
 		/* Compound pages required for remap_vmalloc_page */
-		page = alloc_pages_node(node, gfp_mask | __GFP_COMP, page_order);
+		page = alloc_pages_node(node, gfp_mask | __GFP_COMP, page_order); ///分配物理页面
 		if (unlikely(!page)) {
 			/* Successfully allocated i pages, free them in __vfree() */
 			area->nr_pages = i;
@@ -2826,7 +2826,7 @@ static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
 	}
 	atomic_long_add(area->nr_pages, &nr_vmalloc_pages);
 
-	if (vmap_pages_range(addr, addr + size, prot, pages, page_shift) < 0) {
+	if (vmap_pages_range(addr, addr + size, prot, pages, page_shift) < 0) { ///建立物理页面到vma的映射
 		warn_alloc(gfp_mask, NULL,
 			   "vmalloc size %lu allocation failure: "
 			   "failed to map pages",
@@ -2902,8 +2902,8 @@ void *__vmalloc_node_range(unsigned long size, unsigned long align,
 	}
 
 again:
-	size = PAGE_ALIGN(size);
-	area = __get_vm_area_node(size, align, VM_ALLOC | VM_UNINITIALIZED |
+	size = PAGE_ALIGN(size);  //分配大小对齐，至少为1个页，所以vmalloc适合分配较大内存
+	area = __get_vm_area_node(size, align, VM_ALLOC | VM_UNINITIALIZED |   ///构建vma结构
 				vm_flags, start, end, node, gfp_mask, caller);
 	if (!area) {
 		warn_alloc(gfp_mask, NULL,
@@ -2912,7 +2912,7 @@ again:
 		goto fail;
 	}
 
-	addr = __vmalloc_area_node(area, gfp_mask, prot, shift, node);
+	addr = __vmalloc_area_node(area, gfp_mask, prot, shift, node); ///分配物理内存，并与构建的vma建立映射
 	if (!addr)
 		goto fail;
 
@@ -2960,7 +2960,7 @@ fail:
 void *__vmalloc_node(unsigned long size, unsigned long align,
 			    gfp_t gfp_mask, int node, const void *caller)
 {
-	return __vmalloc_node_range(size, align, VMALLOC_START, VMALLOC_END,
+	return __vmalloc_node_range(size, align, VMALLOC_START, VMALLOC_END,   ///VMALLOC_START,VMALLOC_END表示整个vmalloc区域
 				gfp_mask, PAGE_KERNEL, 0, node, caller);
 }
 /*
