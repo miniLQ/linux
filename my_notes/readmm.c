@@ -126,4 +126,25 @@ early_fixmap_init
 
 
 early_ioremap(resource_size_t phys_addr, unsigned long size)
+do_fork 
 
+copy_process 
+
+dup_mm
+
+mm_init
+
+mm_alloc_pgd   
+
+
+handle_pte_fault(struct vm_fault * vmf)
+
+
+context_switch
+switch_mm_irqs_off
+	switch_mm(struct mm_struct * prev, struct mm_struct * next, struct task_struct * tsk)
+__switch_mm
+
+check_and_switch_context
+cpu_switch_mm
+cpu_do_switch_mm

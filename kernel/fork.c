@@ -607,7 +607,7 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 
 		mm->map_count++;
 		if (!(tmp->vm_flags & VM_WIPEONFORK))
-			retval = copy_page_range(tmp, mpnt);
+			retval = copy_page_range(tmp, mpnt);  ///拷贝vma
 
 		if (tmp->vm_ops && tmp->vm_ops->open)
 			tmp->vm_ops->open(tmp);
@@ -1073,7 +1073,7 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 		mm->def_flags = 0;
 	}
 
-	if (mm_alloc_pgd(mm))
+	if (mm_alloc_pgd(mm))  ///分配pgd页表
 		goto fail_nopgd;
 
 	if (init_new_context(p, mm))
@@ -1447,10 +1447,10 @@ static struct mm_struct *dup_mm(struct task_struct *tsk,
 
 	memcpy(mm, oldmm, sizeof(*mm));
 
-	if (!mm_init(mm, tsk, mm->user_ns))
+	if (!mm_init(mm, tsk, mm->user_ns))   ///分配私有的pgd页面
 		goto fail_nomem;
 
-	err = dup_mmap(mm, oldmm);
+	err = dup_mmap(mm, oldmm);            ///拷贝父进程页表
 	if (err)
 		goto free_pt;
 

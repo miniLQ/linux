@@ -201,10 +201,10 @@ SYSCALL_DEFINE1(brk, unsigned long, brk)
 	bool downgraded = false;
 	LIST_HEAD(uf);
 
-	if (mmap_write_lock_killable(mm))
+	if (mmap_write_lock_killable(mm)) ///申请写类型读写信号量
 		return -EINTR;
 
-	origbrk = mm->brk;
+	origbrk = mm->brk;  ///brk记录当前进程动态分配区的底部
 
 #ifdef CONFIG_COMPAT_BRK
 	/*
@@ -243,7 +243,7 @@ SYSCALL_DEFINE1(brk, unsigned long, brk)
 	 * Always allow shrinking brk.
 	 * __do_munmap() may downgrade mmap_lock to read.
 	 */
-	if (brk <= mm->brk) {
+	if (brk <= mm->brk) {  ///请求释放空间
 		int ret;
 
 		/*
@@ -264,23 +264,23 @@ SYSCALL_DEFINE1(brk, unsigned long, brk)
 
 	/* Check against existing mmap mappings. */
 	next = find_vma(mm, oldbrk);
-	if (next && newbrk + PAGE_SIZE > vm_start_gap(next))
+	if (next && newbrk + PAGE_SIZE > vm_start_gap(next)) ///以旧边界地址去查找vma, 发现有重叠，不需要寻找
 		goto out;
 
 	/* Ok, looks good - let it rip. */
-	if (do_brk_flags(oldbrk, newbrk-oldbrk, 0, &uf) < 0)
+	if (do_brk_flags(oldbrk, newbrk-oldbrk, 0, &uf) < 0)  ///无重叠，新分配一个vma
 		goto out;
-	mm->brk = brk;
+	mm->brk = brk;   ///更新brk地址，即当前进程堆的起始地址
 
 success:
-	populate = newbrk > oldbrk && (mm->def_flags & VM_LOCKED) != 0;
+	populate = newbrk > oldbrk && (mm->def_flags & VM_LOCKED) != 0;  ///调用mlockall()系统调用设置VM_LOCKED，锁住进程所有虚拟地址空间，防止内存被交换出去
 	if (downgraded)
 		mmap_read_unlock(mm);
 	else
 		mmap_write_unlock(mm);
 	userfaultfd_unmap_complete(mm, &uf);
 	if (populate)
-		mm_populate(oldbrk, newbrk - oldbrk);
+		mm_populate(oldbrk, newbrk - oldbrk);   ///mm_populate会立刻分配物理内存
 	return brk;
 
 out:
@@ -599,7 +599,7 @@ munmap_vma_range(struct mm_struct *mm, unsigned long start, unsigned long len,
 		 struct rb_node **parent, struct list_head *uf)
 {
 
-	while (find_vma_links(mm, start, start + len, pprev, link, parent))
+	while (find_vma_links(mm, start, start + len, pprev, link, parent)) ///寻找适合插入的红黑树节点
 		if (do_munmap(mm, start, len, uf))
 			return -ENOMEM;
 
@@ -1754,7 +1754,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	/*
 	 * Can we just expand an old mapping?
 	 */
-	vma = vma_merge(mm, prev, addr, addr + len, vm_flags,
+	vma = vma_merge(mm, prev, addr, addr + len, vm_flags,   ///尝试合并vma
 			NULL, file, pgoff, NULL, NULL_VM_UFFD_CTX);
 	if (vma)
 		goto out;
@@ -1764,7 +1764,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	 * specific mapper. the address has already been validated, but
 	 * not unmapped, but the maps are removed from the list.
 	 */
-	vma = vm_area_alloc(mm);
+	vma = vm_area_alloc(mm);   ///分配一个新vma
 	if (!vma) {
 		error = -ENOMEM;
 		goto unacct_error;
@@ -1776,6 +1776,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 	vma->vm_page_prot = vm_get_page_prot(vm_flags);
 	vma->vm_pgoff = pgoff;
 
+	///文件映射
 	if (file) {
 		if (vm_flags & VM_SHARED) {
 			error = mapping_map_writable(file->f_mapping);
@@ -1820,12 +1821,12 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 		}
 
 		vm_flags = vma->vm_flags;
-	} else if (vm_flags & VM_SHARED) {
-		error = shmem_zero_setup(vma);
+	} else if (vm_flags & VM_SHARED) {   ///共享映射
+		error = shmem_zero_setup(vma);   ///共享匿名映射
 		if (error)
 			goto free_vma;
 	} else {
-		vma_set_anonymous(vma);
+		vma_set_anonymous(vma);  ///匿名映射
 	}
 
 	/* Allow architectures to sanity-check the vm_flags */
@@ -1837,7 +1838,7 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 			goto free_vma;
 	}
 
-	vma_link(mm, vma, prev, rb_link, rb_parent);
+	vma_link(mm, vma, prev, rb_link, rb_parent);   ///vma加入mm系统
 	/* Once vma denies write, undo our temporary denial count */
 unmap_writable:
 	if (file && vm_flags & VM_SHARED)
@@ -3031,9 +3032,9 @@ static int do_brk_flags(unsigned long addr, unsigned long len, unsigned long fla
 	/* Until we need other flags, refuse anything except VM_EXEC. */
 	if ((flags & (~VM_EXEC)) != 0)
 		return -EINVAL;
-	flags |= VM_DATA_DEFAULT_FLAGS | VM_ACCOUNT | mm->def_flags;
+	flags |= VM_DATA_DEFAULT_FLAGS | VM_ACCOUNT | mm->def_flags;  ///默认属性，可读写
 
-	mapped_addr = get_unmapped_area(NULL, addr, len, 0, MAP_FIXED);
+	mapped_addr = get_unmapped_area(NULL, addr, len, 0, MAP_FIXED); ///返回未使用过的，未映射的线性地址区间的，起始地址
 	if (IS_ERR_VALUE(mapped_addr))
 		return mapped_addr;
 
@@ -3042,7 +3043,7 @@ static int do_brk_flags(unsigned long addr, unsigned long len, unsigned long fla
 		return error;
 
 	/* Clear old maps, set up prev, rb_link, rb_parent, and uf */
-	if (munmap_vma_range(mm, addr, len, &prev, &rb_link, &rb_parent, uf))
+	if (munmap_vma_range(mm, addr, len, &prev, &rb_link, &rb_parent, uf)) ///寻找适合插入的红黑树节点
 		return -ENOMEM;
 
 	/* Check against address space limits *after* clearing old maps... */
@@ -3055,7 +3056,7 @@ static int do_brk_flags(unsigned long addr, unsigned long len, unsigned long fla
 	if (security_vm_enough_memory_mm(mm, len >> PAGE_SHIFT))
 		return -ENOMEM;
 
-	/* Can we just expand an old private anonymous mapping? */
+	/* Can we just expand an old private anonymous mapping? */  ///检查是否能合并addr到附近的vma，若不能，只能新建一个vma
 	vma = vma_merge(mm, prev, addr, addr + len, flags,
 			NULL, NULL, pgoff, NULL, NULL_VM_UFFD_CTX);
 	if (vma)
@@ -3076,7 +3077,7 @@ static int do_brk_flags(unsigned long addr, unsigned long len, unsigned long fla
 	vma->vm_pgoff = pgoff;
 	vma->vm_flags = flags;
 	vma->vm_page_prot = vm_get_page_prot(flags);
-	vma_link(mm, vma, prev, rb_link, rb_parent);
+	vma_link(mm, vma, prev, rb_link, rb_parent);  ///新vma添加到mmap链表和红黑树
 out:
 	perf_event_mmap(vma);
 	mm->total_vm += len >> PAGE_SHIFT;

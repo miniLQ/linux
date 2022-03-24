@@ -500,7 +500,7 @@ early_param("crashkernel", enable_crash_mem_map);
 
 static void __init map_mem(pgd_t *pgdp)
 {
-	static const u64 direct_map_end = _PAGE_END(VA_BITS_MIN);
+	static const u64 direct_map_end = _PAGE_END(VA_BITS_MIN);   ///计算需要线性映射的虚拟地址和物理地址
 	phys_addr_t kernel_start = __pa_symbol(_stext);
 	phys_addr_t kernel_end = __pa_symbol(__init_begin);
 	phys_addr_t start, end;
@@ -525,7 +525,7 @@ static void __init map_mem(pgd_t *pgdp)
 	 * So temporarily mark them as NOMAP to skip mappings in
 	 * the following for-loop
 	 */
-	memblock_mark_nomap(kernel_start, kernel_end - kernel_start);
+	memblock_mark_nomap(kernel_start, kernel_end - kernel_start); ///设备树可以定义nomap区，nomap段将不会被映射
 
 	/* map all the memory banks */
 	for_each_mem_range(i, &start, &end) {
@@ -684,7 +684,7 @@ static void __init map_kernel(pgd_t *pgdp)
 	/*
 	 * Only rodata will be remapped with different permissions later on,
 	 * all other segments are allowed to use contiguous mappings.
-	 */
+	 */  ///将内核的每个段，分别建立动态页表
 	map_kernel_segment(pgdp, _stext, _etext, text_prot, &vmlinux_text, 0,
 			   VM_NO_GUARD);
 	map_kernel_segment(pgdp, __start_rodata, __inittext_begin, PAGE_KERNEL,

@@ -583,7 +583,7 @@ static __always_inline void *kmalloc(size_t size, gfp_t flags)
 		if (size > KMALLOC_MAX_CACHE_SIZE)
 			return kmalloc_large(size, flags);
 #ifndef CONFIG_SLOB
-		index = kmalloc_index(size);
+		index = kmalloc_index(size);  ///查找使用的哪个slab缓冲区
 
 		if (!index)
 			return ZERO_SIZE_PTR;

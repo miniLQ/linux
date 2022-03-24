@@ -31,7 +31,7 @@ static void __iomem *__ioremap_caller(phys_addr_t phys_addr, size_t size,
 	 * offset.
 	 */
 	phys_addr &= PAGE_MASK;
-	size = PAGE_ALIGN(size + offset);
+	size = PAGE_ALIGN(size + offset);  ///物理地址页对齐
 
 	/*
 	 * Don't allow wraparound, zero size or outside PHYS_MASK.
@@ -46,19 +46,19 @@ static void __iomem *__ioremap_caller(phys_addr_t phys_addr, size_t size,
 	if (WARN_ON(pfn_is_map_memory(__phys_to_pfn(phys_addr))))
 		return NULL;
 
-	area = get_vm_area_caller(size, VM_IOREMAP, caller);
+	area = get_vm_area_caller(size, VM_IOREMAP, caller);  ///获得一个vma区
 	if (!area)
 		return NULL;
 	addr = (unsigned long)area->addr;
 	area->phys_addr = phys_addr;
-
+///物理地址映射到vmalloc区
 	err = ioremap_page_range(addr, addr + size, phys_addr, prot);
 	if (err) {
 		vunmap((void *)addr);
 		return NULL;
 	}
 
-	return (void __iomem *)(offset + addr);
+	return (void __iomem *)(offset + addr);   ///分配的地址是页对齐，加上偏移得到真实地址
 }
 
 void __iomem *__ioremap(phys_addr_t phys_addr, size_t size, pgprot_t prot)

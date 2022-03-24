@@ -601,20 +601,20 @@ static void print_bad_pte(struct vm_area_struct *vma, unsigned long addr,
  * advantage is that we don't have to follow the strict linearity rule of
  * PFNMAP mappings in order to support COWable mappings.
  *
- */
+ */ ///只返回普通页面，特殊页不参与内存管理，比如回收等
 struct page *vm_normal_page(struct vm_area_struct *vma, unsigned long addr,
 			    pte_t pte)
 {
 	unsigned long pfn = pte_pfn(pte);
 
-	if (IS_ENABLED(CONFIG_ARCH_HAS_PTE_SPECIAL)) {
+	if (IS_ENABLED(CONFIG_ARCH_HAS_PTE_SPECIAL)) {  ///处理特殊页
 		if (likely(!pte_special(pte)))
 			goto check_pfn;
 		if (vma->vm_ops && vma->vm_ops->find_special_page)
 			return vma->vm_ops->find_special_page(vma, addr);
 		if (vma->vm_flags & (VM_PFNMAP | VM_MIXEDMAP))
 			return NULL;
-		if (is_zero_pfn(pfn))
+		if (is_zero_pfn(pfn))  ///零页，返回NULL
 			return NULL;
 		if (pte_devmap(pte))
 			return NULL;
@@ -960,7 +960,7 @@ copy_present_pte(struct vm_area_struct *dst_vma, struct vm_area_struct *src_vma,
 	 * If it's a COW mapping, write protect it both
 	 * in the parent and the child
 	 */
-	if (is_cow_mapping(vm_flags) && pte_write(pte)) {
+	if (is_cow_mapping(vm_flags) && pte_write(pte)) {  ///如果是COW页，父进程，子进程页面都设置为只读
 		ptep_set_wrprotect(src_mm, addr, src_pte);
 		pte = pte_wrprotect(pte);
 	}
@@ -1288,7 +1288,7 @@ copy_page_range(struct vm_area_struct *dst_vma, struct vm_area_struct *src_vma)
 		if (pgd_none_or_clear_bad(src_pgd))
 			continue;
 		if (unlikely(copy_p4d_range(dst_vma, src_vma, dst_pgd, src_pgd,
-					    addr, next))) {
+					    addr, next))) {   ///遍历拷贝页表
 			ret = -ENOMEM;
 			break;
 		}
@@ -2991,15 +2991,15 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 	int page_copied = 0;
 	struct mmu_notifier_range range;
 
-	if (unlikely(anon_vma_prepare(vma)))
+	if (unlikely(anon_vma_prepare(vma))) ///检查VMA是否初始化了RMAP
 		goto oom;
 
-	if (is_zero_pfn(pte_pfn(vmf->orig_pte))) {
+	if (is_zero_pfn(pte_pfn(vmf->orig_pte))) { ///PTE如果是系统零页，分配一个内容全零的页面
 		new_page = alloc_zeroed_user_highpage_movable(vma,
 							      vmf->address);
 		if (!new_page)
 			goto oom;
-	} else {
+	} else {   ///分配一个新物理页面，并且把old_page内容复制到new_page中
 		new_page = alloc_page_vma(GFP_HIGHUSER_MOVABLE, vma,
 				vmf->address);
 		if (!new_page)
@@ -3023,8 +3023,8 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 		goto oom_free_new;
 	cgroup_throttle_swaprate(new_page, GFP_KERNEL);
 
-	__SetPageUptodate(new_page);
-
+	__SetPageUptodate(new_page);   ///设置PG_uptodate, 表示内容有效
+	///注册一个mmu_notifier，并告知系统使dd_page无效
 	mmu_notifier_range_init(&range, MMU_NOTIFY_CLEAR, 0, vma, mm,
 				vmf->address & PAGE_MASK,
 				(vmf->address & PAGE_MASK) + PAGE_SIZE);
@@ -3032,7 +3032,7 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 
 	/*
 	 * Re-check the pte - we dropped the lock
-	 */
+	 */ ///重新读取PTE，并判定是否修改
 	vmf->pte = pte_offset_map_lock(mm, vmf->pmd, vmf->address, &vmf->ptl);
 	if (likely(pte_same(*vmf->pte, vmf->orig_pte))) {
 		if (old_page) {
@@ -3047,6 +3047,7 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 		flush_cache_page(vma, vmf->address, pte_pfn(vmf->orig_pte));
 		entry = mk_pte(new_page, vma->vm_page_prot);
 		entry = pte_sw_mkyoung(entry);
+		///生成一个新PTE
 		entry = maybe_mkwrite(pte_mkdirty(entry), vma);
 
 		/*
@@ -3056,15 +3057,15 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 		 * that left a window where the new PTE could be loaded into
 		 * some TLBs while the old PTE remains in others.
 		 */
-		ptep_clear_flush_notify(vma, vmf->address, vmf->pte);
-		page_add_new_anon_rmap(new_page, vma, vmf->address, false);
-		lru_cache_add_inactive_or_unevictable(new_page, vma);
+		ptep_clear_flush_notify(vma, vmf->address, vmf->pte);        ///刷新这个页面的TLB
+		page_add_new_anon_rmap(new_page, vma, vmf->address, false);  ///new_page添加到RMAP系统中
+		lru_cache_add_inactive_or_unevictable(new_page, vma);        ///new_page添加到LRU链表中
 		/*
 		 * We call the notify macro here because, when using secondary
 		 * mmu page tables (such as kvm shadow page tables), we want the
 		 * new page to be mapped directly into the secondary page table.
 		 */
-		set_pte_at_notify(mm, vmf->address, vmf->pte, entry);
+		set_pte_at_notify(mm, vmf->address, vmf->pte, entry);  ///新pte设置到硬件PTE中
 		update_mmu_cache(vma, vmf->address, vmf->pte);
 		if (old_page) {
 			/*
@@ -3258,7 +3259,7 @@ static vm_fault_t do_wp_page(struct vm_fault *vmf)
 		     mm_tlb_flush_pending(vmf->vma->vm_mm)))
 		flush_tlb_page(vmf->vma, vmf->address);
 
-	vmf->page = vm_normal_page(vma, vmf->address, vmf->orig_pte);
+	vmf->page = vm_normal_page(vma, vmf->address, vmf->orig_pte); ///查找缺页异常地址对应页面的page数据结构，返回为NULL,说明是一个特殊页面
 	if (!vmf->page) {
 		/*
 		 * VM_MIXEDMAP !pfn_valid() case, or VM_SOFTDIRTY clear on a
@@ -3269,7 +3270,7 @@ static vm_fault_t do_wp_page(struct vm_fault *vmf)
 		 */
 		if ((vma->vm_flags & (VM_WRITE|VM_SHARED)) ==
 				     (VM_WRITE|VM_SHARED))
-			return wp_pfn_shared(vmf);
+			return wp_pfn_shared(vmf); 
 
 		pte_unmap_unlock(vmf->pte, vmf->ptl);
 		return wp_page_copy(vmf);
@@ -3310,7 +3311,7 @@ copy:
 	get_page(vmf->page);
 
 	pte_unmap_unlock(vmf->pte, vmf->ptl);
-	return wp_page_copy(vmf);
+	return wp_page_copy(vmf);///处理写时复制
 }
 
 static void unmap_mapping_range_vma(struct vm_area_struct *vma,

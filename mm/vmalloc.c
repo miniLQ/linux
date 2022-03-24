@@ -2888,7 +2888,7 @@ static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
 {
 	const gfp_t nested_gfp = (gfp_mask & GFP_RECLAIM_MASK) | __GFP_ZERO;
 	unsigned long addr = (unsigned long)area->addr;
-	unsigned long size = get_vm_area_size(area);
+	unsigned long size = get_vm_area_size(area);   ///计算vm_struct包含多少个页面
 	unsigned long array_size;
 	unsigned int nr_small_pages = size >> PAGE_SHIFT;
 	unsigned int page_order;
@@ -3010,6 +3010,7 @@ void *__vmalloc_node_range(unsigned long size, unsigned long align,
 	}
 
 again:
+	///构建vma结构
 	area = __get_vm_area_node(real_size, align, shift, VM_ALLOC |
 				  VM_UNINITIALIZED | vm_flags, start, end, node,
 				  gfp_mask, caller);
@@ -3020,7 +3021,7 @@ again:
 		goto fail;
 	}
 
-	addr = __vmalloc_area_node(area, gfp_mask, prot, shift, node);
+	addr = __vmalloc_area_node(area, gfp_mask, prot, shift, node); ///分配物理内存，并与构建的vma建立映射
 	if (!addr)
 		goto fail;
 
@@ -3069,7 +3070,7 @@ fail:
 void *__vmalloc_node(unsigned long size, unsigned long align,
 			    gfp_t gfp_mask, int node, const void *caller)
 {
-	return __vmalloc_node_range(size, align, VMALLOC_START, VMALLOC_END,
+	return __vmalloc_node_range(size, align, VMALLOC_START, VMALLOC_END,   ///VMALLOC_START,VMALLOC_END表示整个vmalloc区域
 				gfp_mask, PAGE_KERNEL, 0, node, caller);
 }
 /*
