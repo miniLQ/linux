@@ -604,7 +604,7 @@ SYM_CODE_START(vectors)
 	kernel_ventry	1, irq_invalid			// IRQ EL1t
 	kernel_ventry	1, fiq_invalid			// FIQ EL1t
 	kernel_ventry	1, error_invalid		// Error EL1t
-
+///linux异常向量入口，这里是同步异常，kernel_ventry宏展开为el1_sync
 	kernel_ventry	1, sync				// Synchronous EL1h
 	kernel_ventry	1, irq				// IRQ EL1h
 	kernel_ventry	1, fiq				// FIQ EL1h
@@ -705,10 +705,10 @@ SYM_CODE_END(el1_error_invalid)
  */
 	.align	6
 SYM_CODE_START_LOCAL_NOALIGN(el1_sync)
-	kernel_entry 1
-	mov	x0, sp
+	kernel_entry 1  ///保存上下文
+	mov	x0, sp      ///sp作为参数
 	bl	el1_sync_handler
-	kernel_exit 1
+	kernel_exit 1   ///恢复上下文
 SYM_CODE_END(el1_sync)
 
 	.align	6
