@@ -496,6 +496,7 @@ SYM_CODE_START(vectors)
 	kernel_ventry	1, t, 64, fiq		// FIQ EL1h
 	kernel_ventry	1, t, 64, error		// Error EL1t
 
+	///linux异常向量入口，这里是同步异常，kernel_ventry宏展开为el1_sync
 	kernel_ventry	1, h, 64, sync		// Synchronous EL1h
 	kernel_ventry	1, h, 64, irq		// IRQ EL1h
 	kernel_ventry	1, h, 64, fiq		// FIQ EL1h
@@ -580,7 +581,7 @@ SYM_CODE_END(el\el\ht\()_\regsize\()_\label)
 	entry_handler	0, t, 32, error
 
 SYM_CODE_START_LOCAL(ret_to_kernel)
-	kernel_exit 1
+	kernel_exit 1   ///恢复上下文
 SYM_CODE_END(ret_to_kernel)
 
 SYM_CODE_START_LOCAL(ret_to_user)

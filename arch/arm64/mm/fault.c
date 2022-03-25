@@ -55,7 +55,7 @@ static struct fault_info debug_fault_info[];
 
 static inline const struct fault_info *esr_to_fault_info(unsigned int esr)
 {
-	return fault_info + (esr & ESR_ELx_FSC);
+	return fault_info + (esr & ESR_ELx_FSC); ///根据ESR_ELx_FSC字段，选择处理函数
 }
 
 static inline const struct fault_info *esr_to_debug_fault_info(unsigned int esr)
@@ -474,16 +474,16 @@ static vm_fault_t __do_page_fault(struct mm_struct *mm, unsigned long addr,
 				  unsigned int mm_flags, unsigned long vm_flags,
 				  struct pt_regs *regs)
 {
-	struct vm_area_struct *vma = find_vma(mm, addr);
+	struct vm_area_struct *vma = find_vma(mm, addr); ///查找失效地址addr对应的vma
 
-	if (unlikely(!vma))
+	if (unlikely(!vma)) ///找不到vma，说明addr还没在进程地址空间中，返回VM_FAULT_BADMAP
 		return VM_FAULT_BADMAP;
 
 	/*
 	 * Ok, we have a good vm_area for this memory access, so we can handle
 	 * it.
 	 */
-	if (unlikely(vma->vm_start > addr)) {
+	if (unlikely(vma->vm_start > addr)) {   ///vm_start>addr,特殊情况(栈，向下增长)，检查能否vma扩展到addr，否则报错
 		if (!(vma->vm_flags & VM_GROWSDOWN))
 			return VM_FAULT_BADMAP;
 		if (expand_stack(vma, addr))
@@ -494,9 +494,10 @@ static vm_fault_t __do_page_fault(struct mm_struct *mm, unsigned long addr,
 	 * Check that the permissions on the VMA allow for the fault which
 	 * occurred.
 	 */
-	if (!(vma->vm_flags & vm_flags))
+	if (!(vma->vm_flags & vm_flags)) ///判断vma属性，无权限，直接返回
 		return VM_FAULT_BADACCESS;
-	return handle_mm_fault(vma, addr, mm_flags, regs);
+
+	return handle_mm_fault(vma, addr, mm_flags, regs); ///缺页中断处理的核心处理函数
 }
 
 static bool is_el0_instruction_abort(unsigned int esr)
@@ -529,8 +530,8 @@ static int __kprobes do_page_fault(unsigned long far, unsigned int esr,
 	/*
 	 * If we're in an interrupt or have no user context, we must not take
 	 * the fault.
-	 */
-	if (faulthandler_disabled() || !mm)
+	 */  ///检查异常发生时的路径, 若不合条件，直接跳转no_context，出错处理
+	if (faulthandler_disabled() || !mm)  ///是否关闭缺页中断，是否在中断上下文，是否内核空间，内核进程的mm总是NULL
 		goto no_context;
 
 	if (user_mode(regs))
@@ -542,11 +543,11 @@ static int __kprobes do_page_fault(unsigned long far, unsigned int esr,
 	 * vma->vm_flags & vm_flags and returns an error if the
 	 * intersection is empty
 	 */
-	if (is_el0_instruction_abort(esr)) {
+	if (is_el0_instruction_abort(esr)) {    ///判断是否为低异常等级的指令异常，若为指令异常，说明该地址具有可执行权限
 		/* It was exec fault */
 		vm_flags = VM_EXEC;
 		mm_flags |= FAULT_FLAG_INSTRUCTION;
-	} else if (is_write_abort(esr)) {
+	} else if (is_write_abort(esr)) { ///写内存区错误
 		/* It was write fault */
 		vm_flags = VM_WRITE;
 		mm_flags |= FAULT_FLAG_WRITE;
@@ -559,7 +560,7 @@ static int __kprobes do_page_fault(unsigned long far, unsigned int esr,
 		if (!cpus_have_const_cap(ARM64_HAS_EPAN))
 			vm_flags |= VM_EXEC;
 	}
-
+	///判断是否为用户空间，是否EL1权限错误，都满足时，表明处于少见的特殊情况，直接报错处理
 	if (is_ttbr0_addr(addr) && is_el1_permission_fault(addr, esr, regs)) {
 		if (is_el1_instruction_abort(esr))
 			die_kernel_fault("execution of user memory",
@@ -576,12 +577,12 @@ static int __kprobes do_page_fault(unsigned long far, unsigned int esr,
 	 * As per x86, we may deadlock here. However, since the kernel only
 	 * validly references user space from well defined areas of the code,
 	 * we can bug out early if this is from code which shouldn't.
-	 */
+	 */   ///执行到这里，可以断定缺页异常没有发生在中断上下文，没有发生在内核线程，以及一些特殊情况；接下来检查由于地址空间引发的缺页异常
 	if (!mmap_read_trylock(mm)) {
 		if (!user_mode(regs) && !search_exception_tables(regs->pc))
 			goto no_context;
 retry:
-		mmap_read_lock(mm);
+		mmap_read_lock(mm);  ///睡眠，等待锁释放
 	} else {
 		/*
 		 * The above mmap_read_trylock() might have succeeded in which
@@ -595,7 +596,7 @@ retry:
 		}
 #endif
 	}
-
+	///进一步处理缺页以异常
 	fault = __do_page_fault(mm, addr, mm_flags, vm_flags, regs);
 
 	/* Quick path to respond to signals */
@@ -611,7 +612,7 @@ retry:
 			goto retry;
 		}
 	}
-	mmap_read_unlock(mm);
+	mmap_read_unlock(mm);  ///释放锁
 
 	/*
 	 * Handle the "normal" (no error) case first.
@@ -666,7 +667,7 @@ retry:
 	return 0;
 
 no_context:
-	__do_kernel_fault(addr, esr, regs);
+	__do_kernel_fault(addr, esr, regs);  ///报错处理
 	return 0;
 }
 
@@ -804,13 +805,19 @@ static const struct fault_info fault_info[] = {
 	{ do_bad,		SIGKILL, SI_KERNEL,	"page domain fault"		},
 	{ do_bad,		SIGKILL, SI_KERNEL,	"unknown 63"			},
 };
-
+/************************************************************************************
+ * 缺页中断处理函数
+ * 参数：
+ * far:  出错虚拟地址
+ * esr:  ESR_EL1值
+ * regs: 异常发生时的堆栈指针
+ ************************************************************************************/
 void do_mem_abort(unsigned long far, unsigned int esr, struct pt_regs *regs)
 {
-	const struct fault_info *inf = esr_to_fault_info(esr);
+	const struct fault_info *inf = esr_to_fault_info(esr);  ///根据DFSC字段值，查询fault_info表，获取相应的处理函数
 	unsigned long addr = untagged_addr(far);
 
-	if (!inf->fn(far, esr, regs))
+	if (!inf->fn(far, esr, regs))  ///执行esr_to_fault_info获取的函数
 		return;
 
 	if (!user_mode(regs)) {
@@ -824,7 +831,7 @@ void do_mem_abort(unsigned long far, unsigned int esr, struct pt_regs *regs)
 	 * have been defined as UNKNOWN. Therefore we only expose the untagged
 	 * address to the signal handler.
 	 */
-	arm64_notify_die(inf->name, regs, inf->sig, inf->code, addr, esr);
+	arm64_notify_die(inf->name, regs, inf->sig, inf->code, addr, esr);  ///如果没找到相应处理函数，打印出错信息
 }
 NOKPROBE_SYMBOL(do_mem_abort);
 

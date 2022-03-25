@@ -350,12 +350,12 @@ UNHANDLED(el1t, 64, error)
 
 static void noinstr el1_abort(struct pt_regs *regs, unsigned long esr)
 {
-	unsigned long far = read_sysreg(far_el1);
+	unsigned long far = read_sysreg(far_el1); ///从far_el1读取出现异常的虚拟地址
 
 	enter_from_kernel_mode(regs);
-	local_daif_inherit(regs);
-	do_mem_abort(far, esr, regs);
-	local_daif_mask();
+	local_daif_inherit(regs);     ///恢复外部中断信号？
+	do_mem_abort(far, esr, regs); ///异常处理函数
+	local_daif_mask();            ///屏蔽中断位？
 	exit_to_kernel_mode(regs);
 }
 
@@ -402,10 +402,10 @@ asmlinkage void noinstr el1h_64_sync_handler(struct pt_regs *regs)
 {
 	unsigned long esr = read_sysreg(esr_el1);
 
-	switch (ESR_ELx_EC(esr)) {
-	case ESR_ELx_EC_DABT_CUR:
+	switch (ESR_ELx_EC(esr)) {   ///读取esr_el1的EC域，判断异常类型
+	case ESR_ELx_EC_DABT_CUR:  ///0x25，表示来自当前的异常等级的数据异常
 	case ESR_ELx_EC_IABT_CUR:
-		el1_abort(regs, esr);
+		el1_abort(regs, esr);  ///数据异常入口
 		break;
 	/*
 	 * We don't handle ESR_ELx_EC_SP_ALIGN, since we will have hit a

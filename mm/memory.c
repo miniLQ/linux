@@ -4544,8 +4544,8 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 		 * mmap_lock read mode and khugepaged takes it in write mode.
 		 * So now it's safe to run pte_offset_map().
 		 */
-		vmf->pte = pte_offset_map(vmf->pmd, vmf->address);
-		vmf->orig_pte = *vmf->pte;
+		vmf->pte = pte_offset_map(vmf->pmd, vmf->address);  ///计算pte页表项
+		vmf->orig_pte = *vmf->pte;                          ///读取pte内容到vmf->orig_pte
 
 		/*
 		 * some architectures can have larger ptes than wordsize,
@@ -4555,24 +4555,26 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 		 * for the ifs and we later double check anyway with the
 		 * ptl lock held. So here a barrier will do.
 		 */
-		barrier();
+		barrier();  ///有的处理器PTE会大于字长，所以READ_ONCE()不能保证原子性，添加内存屏障以保证正确读取了PTE内容
 		if (pte_none(vmf->orig_pte)) {
 			pte_unmap(vmf->pte);
 			vmf->pte = NULL;
 		}
 	}
 
-	if (!vmf->pte) {
+///pte为空
+	if (!vmf->pte) {   
 		if (vma_is_anonymous(vmf->vma))
-			return do_anonymous_page(vmf);
+			return do_anonymous_page(vmf);  ///处理匿名映射
 		else
-			return do_fault(vmf);
+			return do_fault(vmf);           ///文件映射
 	}
+	
+///pte不为空
+	if (!pte_present(vmf->orig_pte))   ///pte存在，但是不在内存中，从交换分区读回页面
+		return do_swap_page(vmf); 
 
-	if (!pte_present(vmf->orig_pte))
-		return do_swap_page(vmf);
-
-	if (pte_protnone(vmf->orig_pte) && vma_is_accessible(vmf->vma))
+	if (pte_protnone(vmf->orig_pte) && vma_is_accessible(vmf->vma))  ///处理numa调度页面
 		return do_numa_page(vmf);
 
 	vmf->ptl = pte_lockptr(vmf->vma->vm_mm, vmf->pmd);
@@ -4582,13 +4584,13 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 		update_mmu_tlb(vmf->vma, vmf->address, vmf->pte);
 		goto unlock;
 	}
-	if (vmf->flags & FAULT_FLAG_WRITE) {
+	if (vmf->flags & FAULT_FLAG_WRITE) {  ///FAULT_FLAG_WRITE标志，根据ESR_ELx_WnR设置
 		if (!pte_write(entry))
-			return do_wp_page(vmf);
+			return do_wp_page(vmf);       ///vma可写，pte只读，触发缺页异常，父子进程共享的内存，写时复制
 		entry = pte_mkdirty(entry);
 	}
-	entry = pte_mkyoung(entry);
-	if (ptep_set_access_flags(vmf->vma, vmf->address, vmf->pte, entry,
+	entry = pte_mkyoung(entry);  ///访问标志位错误，设置PTE_AF位
+	if (ptep_set_access_flags(vmf->vma, vmf->address, vmf->pte, entry,  ///更新PTE和缓存
 				vmf->flags & FAULT_FLAG_WRITE)) {
 		update_mmu_cache(vmf->vma, vmf->address, vmf->pte);
 	} else {
@@ -4618,7 +4620,7 @@ unlock:
 static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 		unsigned long address, unsigned int flags)
 {
-	struct vm_fault vmf = {
+	struct vm_fault vmf = {  ///构建vma描述结构体
 		.vma = vma,
 		.address = address & PAGE_MASK,
 		.flags = flags,
@@ -4631,12 +4633,12 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 	p4d_t *p4d;
 	vm_fault_t ret;
 
-	pgd = pgd_offset(mm, address);
-	p4d = p4d_alloc(mm, pgd, address);
+	pgd = pgd_offset(mm, address);     ///计算pgd页表项
+	p4d = p4d_alloc(mm, pgd, address); ///计算p4d页表项，这里等于pgd
 	if (!p4d)
 		return VM_FAULT_OOM;
 
-	vmf.pud = pud_alloc(mm, p4d, address);
+	vmf.pud = pud_alloc(mm, p4d, address);  ///计算pud页表项
 	if (!vmf.pud)
 		return VM_FAULT_OOM;
 retry_pud:
@@ -4663,7 +4665,7 @@ retry_pud:
 		}
 	}
 
-	vmf.pmd = pmd_alloc(mm, vmf.pud, address);
+	vmf.pmd = pmd_alloc(mm, vmf.pud, address);  ///计算pmd页表项
 	if (!vmf.pmd)
 		return VM_FAULT_OOM;
 
@@ -4701,7 +4703,7 @@ retry_pud:
 		}
 	}
 
-	return handle_pte_fault(&vmf);
+	return handle_pte_fault(&vmf); ///进入通用代码处理
 }
 
 /**
