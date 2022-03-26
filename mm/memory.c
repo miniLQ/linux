@@ -3851,14 +3851,14 @@ static vm_fault_t __do_fault(struct vm_fault *vmf)
 	 *				unlock_page(B)
 	 *				# flush A, B to clear the writeback
 	 */
-	if (pmd_none(*vmf->pmd) && !vmf->prealloc_pte) {
+	if (pmd_none(*vmf->pmd) && !vmf->prealloc_pte) {   ///先分配pte
 		vmf->prealloc_pte = pte_alloc_one(vma->vm_mm);
 		if (!vmf->prealloc_pte)
 			return VM_FAULT_OOM;
 		smp_wmb(); /* See comment in __pte_alloc() */
 	}
 
-	ret = vma->vm_ops->fault(vmf);
+	ret = vma->vm_ops->fault(vmf);  ///读文件内容到vmf->page中
 	if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE | VM_FAULT_RETRY |
 			    VM_FAULT_DONE_COW)))
 		return ret;
@@ -4018,9 +4018,9 @@ vm_fault_t finish_fault(struct vm_fault *vmf)
 
 	/* Did we COW the page? */
 	if ((vmf->flags & FAULT_FLAG_WRITE) && !(vma->vm_flags & VM_SHARED))
-		page = vmf->cow_page;
+		page = vmf->cow_page;  ///可写，获取写时复制页
 	else
-		page = vmf->page;
+		page = vmf->page;      ///读，获取page页
 
 	/*
 	 * check even for read faults because we might have lost our CoWed
@@ -4056,12 +4056,12 @@ vm_fault_t finish_fault(struct vm_fault *vmf)
 	if (pmd_devmap_trans_unstable(vmf->pmd))
 		return 0;
 
-	vmf->pte = pte_offset_map_lock(vma->vm_mm, vmf->pmd,
+	vmf->pte = pte_offset_map_lock(vma->vm_mm, vmf->pmd,  ///获取pte页表项
 				      vmf->address, &vmf->ptl);
 	ret = 0;
 	/* Re-check under ptl */
 	if (likely(pte_none(*vmf->pte)))
-		do_set_pte(vmf, page, vmf->address);
+		do_set_pte(vmf, page, vmf->address); ///设置页表项，建立映射
 	else
 		ret = VM_FAULT_NOPAGE;
 
@@ -4154,14 +4154,14 @@ static vm_fault_t do_fault_around(struct vm_fault *vmf)
 	end_pgoff = min3(end_pgoff, vma_pages(vmf->vma) + vmf->vma->vm_pgoff - 1,
 			start_pgoff + nr_pages - 1);
 
-	if (pmd_none(*vmf->pmd)) {
+	if (pmd_none(*vmf->pmd)) { 
 		vmf->prealloc_pte = pte_alloc_one(vmf->vma->vm_mm);
 		if (!vmf->prealloc_pte)
 			return VM_FAULT_OOM;
 		smp_wmb(); /* See comment in __pte_alloc() */
 	}
 
-	return vmf->vma->vm_ops->map_pages(vmf, start_pgoff, end_pgoff);
+	return vmf->vma->vm_ops->map_pages(vmf, start_pgoff, end_pgoff); ///建立，现存高速缓存页面到虚拟地址的映射
 }
 
 static vm_fault_t do_read_fault(struct vm_fault *vmf)
@@ -4174,6 +4174,9 @@ static vm_fault_t do_read_fault(struct vm_fault *vmf)
 	 * if page by the offset is not ready to be mapped (cold cache or
 	 * something).
 	 */
+///如果定义了map_pages，将异常地址附近的页尽可能多的与高速缓存建立映射(只针对现存的页面缓存，不创建页面)	
+///预估异常地址附近页面高速缓存，可能很快会被读到
+/////fault_around_bytes默认16页
 	if (vma->vm_ops->map_pages && fault_around_bytes >> PAGE_SHIFT > 1) {
 		if (likely(!userfaultfd_minor(vmf->vma))) {
 			ret = do_fault_around(vmf);
@@ -4182,11 +4185,11 @@ static vm_fault_t do_read_fault(struct vm_fault *vmf)
 		}
 	}
 
-	ret = __do_fault(vmf);
+	ret = __do_fault(vmf); ///创建新的高速缓存，并将文件内容读到缓存
 	if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE | VM_FAULT_RETRY)))
 		return ret;
 
-	ret |= finish_fault(vmf);
+	ret |= finish_fault(vmf); ///填写表项，建立映射
 	unlock_page(vmf->page);
 	if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE | VM_FAULT_RETRY)))
 		put_page(vmf->page);
@@ -4198,9 +4201,10 @@ static vm_fault_t do_cow_fault(struct vm_fault *vmf)
 	struct vm_area_struct *vma = vmf->vma;
 	vm_fault_t ret;
 
-	if (unlikely(anon_vma_prepare(vma)))
+	if (unlikely(anon_vma_prepare(vma)))  ///检查该vma是否初始化了RMAP
 		return VM_FAULT_OOM;
 
+///分配一个物理页面，优先使用高端内存
 	vmf->cow_page = alloc_page_vma(GFP_HIGHUSER_MOVABLE, vma, vmf->address);
 	if (!vmf->cow_page)
 		return VM_FAULT_OOM;
@@ -4211,16 +4215,17 @@ static vm_fault_t do_cow_fault(struct vm_fault *vmf)
 	}
 	cgroup_throttle_swaprate(vmf->cow_page, GFP_KERNEL);
 
-	ret = __do_fault(vmf);
+	ret = __do_fault(vmf);  ///读取文件内容到vmf->page
 	if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE | VM_FAULT_RETRY)))
 		goto uncharge_out;
 	if (ret & VM_FAULT_DONE_COW)
 		return ret;
-
-	copy_user_highpage(vmf->cow_page, vmf->page, vmf->address, vma);
+	
+///把vmf->page的内容复制到刚分配的cow_page
+	copy_user_highpage(vmf->cow_page, vmf-page, vmf->address, vma);
 	__SetPageUptodate(vmf->cow_page);
 
-	ret |= finish_fault(vmf);
+	ret |= finish_fault(vmf);  ///使用vmf->cow_page制作PTE，设置到物理页面，建立映射，并添加到RMAP机制
 	unlock_page(vmf->page);
 	put_page(vmf->page);
 	if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE | VM_FAULT_RETRY)))
@@ -4236,14 +4241,14 @@ static vm_fault_t do_shared_fault(struct vm_fault *vmf)
 	struct vm_area_struct *vma = vmf->vma;
 	vm_fault_t ret, tmp;
 
-	ret = __do_fault(vmf);
+	ret = __do_fault(vmf);  ///读取文件内容到vmf->page
 	if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE | VM_FAULT_RETRY)))
 		return ret;
 
 	/*
 	 * Check if the backing address space wants to know that the page is
 	 * about to become writable
-	 */
+	 */ ///若定义了page_mkwrite，调用do_page_mkwrite通知进程地址空间，页面变成可写；若页面可写，进程需要等待这个页面的内容会写成功
 	if (vma->vm_ops->page_mkwrite) {
 		unlock_page(vmf->page);
 		tmp = do_page_mkwrite(vmf);
@@ -4254,7 +4259,7 @@ static vm_fault_t do_shared_fault(struct vm_fault *vmf)
 		}
 	}
 
-	ret |= finish_fault(vmf);
+	ret |= finish_fault(vmf);  ///使用vmf->page制作PTE，设置到物理页面，建立映射，并添加到RMAP机制
 	if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE |
 					VM_FAULT_RETRY))) {
 		unlock_page(vmf->page);
@@ -4262,7 +4267,7 @@ static vm_fault_t do_shared_fault(struct vm_fault *vmf)
 		return ret;
 	}
 
-	ret |= fault_dirty_shared_page(vmf);
+	ret |= fault_dirty_shared_page(vmf);  ///设置脏页，回写部分脏页
 	return ret;
 }
 
@@ -4283,7 +4288,7 @@ static vm_fault_t do_fault(struct vm_fault *vmf)
 	/*
 	 * The VMA was not fully populated on mmap() or missing VM_DONTEXPAND
 	 */
-	if (!vma->vm_ops->fault) {
+	if (!vma->vm_ops->fault) { ///处理没有实现fault()回调函数的情况，各种出错处理
 		/*
 		 * If we find a migration pmd entry or a none pmd entry, which
 		 * should never happen, return SIGBUS
@@ -4303,21 +4308,21 @@ static vm_fault_t do_fault(struct vm_fault *vmf)
 			 * followed by an update.
 			 */
 			if (unlikely(pte_none(*vmf->pte)))
-				ret = VM_FAULT_SIGBUS;
+				ret = VM_FAULT_SIGBUS; ///发现pte无效
 			else
-				ret = VM_FAULT_NOPAGE;
+				ret = VM_FAULT_NOPAGE; ///pte有效，表示本次缺页异常不需要返回一个新页面
 
 			pte_unmap_unlock(vmf->pte, vmf->ptl);
 		}
 	} else if (!(vmf->flags & FAULT_FLAG_WRITE))
-		ret = do_read_fault(vmf);
+		ret = do_read_fault(vmf);           ///flags标记本次缺页异常由读内存引起
 	else if (!(vma->vm_flags & VM_SHARED))
-		ret = do_cow_fault(vmf);
+		ret = do_cow_fault(vmf);            ///写内存引起，且为私有
 	else
-		ret = do_shared_fault(vmf);
+		ret = do_shared_fault(vmf);         ///内存引起，且为共享
 
 	/* preallocated pagetable is unused: free it */
-	if (vmf->prealloc_pte) {
+	if (vmf->prealloc_pte) {                ///释放prealloc_pte
 		pte_free(vm_mm, vmf->prealloc_pte);
 		vmf->prealloc_pte = NULL;
 	}
