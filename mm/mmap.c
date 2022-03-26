@@ -1822,11 +1822,11 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 
 		vm_flags = vma->vm_flags;
 	} else if (vm_flags & VM_SHARED) {   ///共享映射
-		error = shmem_zero_setup(vma);   ///共享匿名映射
+		error = shmem_zero_setup(vma);   ///共享匿名映射，关联shmem的vma操作(ipc共享内存一样)
 		if (error)
 			goto free_vma;
 	} else {
-		vma_set_anonymous(vma);  ///匿名映射
+		vma_set_anonymous(vma);  ///私有匿名映射
 	}
 
 	/* Allow architectures to sanity-check the vm_flags */

@@ -3721,7 +3721,7 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	pte_t entry;
 
 	/* File mapping without ->vm_ops ? */
-	if (vma->vm_flags & VM_SHARED)
+	if (vma->vm_flags & VM_SHARED)    ///防止共享的vma进入匿名页面的缺页中断，本函数只处理私有匿名映射
 		return VM_FAULT_SIGBUS;
 
 	/*
@@ -3734,19 +3734,20 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	 *
 	 * Here we only have mmap_read_lock(mm).
 	 */
-	if (pte_alloc(vma->vm_mm, vmf->pmd))
+	if (pte_alloc(vma->vm_mm, vmf->pmd)) ///分配pte页表并填充到pmd
 		return VM_FAULT_OOM;
 
 	/* See comment in handle_pte_fault() */
 	if (unlikely(pmd_trans_unstable(vmf->pmd)))
 		return 0;
 
+///处理分配页面只读情况，系统返回零页
 	/* Use the zero-page for reads */
 	if (!(vmf->flags & FAULT_FLAG_WRITE) &&
 			!mm_forbids_zeropage(vma->vm_mm)) {
-		entry = pte_mkspecial(pfn_pte(my_zero_pfn(vmf->address),
+		entry = pte_mkspecial(pfn_pte(my_zero_pfn(vmf->address), ///my_zero_pfn获取零页的页帧号
 						vma->vm_page_prot));
-		vmf->pte = pte_offset_map_lock(vma->vm_mm, vmf->pmd,
+		vmf->pte = pte_offset_map_lock(vma->vm_mm, vmf->pmd,  ///获取pte页表项，同时获取锁保护
 				vmf->address, &vmf->ptl);
 		if (!pte_none(*vmf->pte)) {
 			update_mmu_tlb(vma, vmf->address, vmf->pte);
@@ -3760,13 +3761,14 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 			pte_unmap_unlock(vmf->pte, vmf->ptl);
 			return handle_userfault(vmf, VM_UFFD_MISSING);
 		}
-		goto setpte;
+		goto setpte;  ///写情况处理完，跳转setpte
 	}
 
+///处理vma可写情况
 	/* Allocate our own private page. */
-	if (unlikely(anon_vma_prepare(vma)))
+	if (unlikely(anon_vma_prepare(vma)))  ///为建立rmap做准备
 		goto oom;
-	page = alloc_zeroed_user_highpage_movable(vma, vmf->address);
+	page = alloc_zeroed_user_highpage_movable(vma, vmf->address);  ///分配一个可移动的匿名物理页面，优先使用高端内存(arm64不存在高端内存)
 	if (!page)
 		goto oom;
 
@@ -3779,14 +3781,14 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	 * preceding stores to the page contents become visible before
 	 * the set_pte_at() write.
 	 */
-	__SetPageUptodate(page);
+	__SetPageUptodate(page); ///添加内存屏障
 
-	entry = mk_pte(page, vma->vm_page_prot);
+	entry = mk_pte(page, vma->vm_page_prot);  ///创建一个pte页表项
 	entry = pte_sw_mkyoung(entry);
 	if (vma->vm_flags & VM_WRITE)
-		entry = pte_mkwrite(pte_mkdirty(entry));
+		entry = pte_mkwrite(pte_mkdirty(entry));  ///设置可写标记
 
-	vmf->pte = pte_offset_map_lock(vma->vm_mm, vmf->pmd, vmf->address,
+	vmf->pte = pte_offset_map_lock(vma->vm_mm, vmf->pmd, vmf->address,  ///获取pte页表项，并获得自旋锁，保证不被锁和打断
 			&vmf->ptl);
 	if (!pte_none(*vmf->pte)) {
 		update_mmu_cache(vma, vmf->address, vmf->pte);
@@ -3804,11 +3806,11 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 		return handle_userfault(vmf, VM_UFFD_MISSING);
 	}
 
-	inc_mm_counter_fast(vma->vm_mm, MM_ANONPAGES);
-	page_add_new_anon_rmap(page, vma, vmf->address, false);
-	lru_cache_add_inactive_or_unevictable(page, vma);
+	inc_mm_counter_fast(vma->vm_mm, MM_ANONPAGES);             ///增加进程匿名页计数
+	page_add_new_anon_rmap(page, vma, vmf->address, false);    ///匿名页面添加到rmap系统
+	lru_cache_add_inactive_or_unevictable(page, vma);          ///匿名页面添加到lru
 setpte:
-	set_pte_at(vma->vm_mm, vmf->address, vmf->pte, entry);
+	set_pte_at(vma->vm_mm, vmf->address, vmf->pte, entry);   ///填写页表项到硬件页表
 
 	/* No need to invalidate - it was non-present before */
 	update_mmu_cache(vma, vmf->address, vmf->pte);
