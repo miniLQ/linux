@@ -148,3 +148,14 @@ __switch_mm
 check_and_switch_context
 cpu_switch_mm
 cpu_do_switch_mm
+
+============================
+kmalloc(size_t size, gfp_t)
+
+vmalloc
+
+
+alloc_zeroed_user_highpage_movable(struct vm_area_struct * vma, unsigned long vaddr)
+
+
+vm_mmap_pgoff

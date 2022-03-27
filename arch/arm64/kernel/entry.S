@@ -604,8 +604,8 @@ SYM_CODE_START(vectors)
 	kernel_ventry	1, irq_invalid			// IRQ EL1t
 	kernel_ventry	1, fiq_invalid			// FIQ EL1t
 	kernel_ventry	1, error_invalid		// Error EL1t
-///linux异常向量入口，这里是同步异常，kernel_ventry宏展开为el1_sync
-	kernel_ventry	1, sync				// Synchronous EL1h
+
+	kernel_ventry	1, sync				// Synchronous EL1h ///linux异常向量入口，这里是同步异常，kernel_ventry宏展开为el1_sync
 	kernel_ventry	1, irq				// IRQ EL1h
 	kernel_ventry	1, fiq				// FIQ EL1h
 	kernel_ventry	1, error			// Error EL1h
