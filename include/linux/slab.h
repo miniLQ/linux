@@ -588,7 +588,7 @@ static __always_inline void *kmalloc(size_t size, gfp_t flags)
 		if (!index)
 			return ZERO_SIZE_PTR;
 
-		return kmem_cache_alloc_trace(
+		return kmem_cache_alloc_trace(    ///从slab分配内存
 				kmalloc_caches[kmalloc_type(flags)][index],
 				flags, size);
 #endif

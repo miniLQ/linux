@@ -491,10 +491,22 @@ tsk	.req	x28		// current thread_info
 
 	.align	11
 SYM_CODE_START(vectors)
+<<<<<<< HEAD
 	kernel_ventry	1, t, 64, sync		// Synchronous EL1t
 	kernel_ventry	1, t, 64, irq		// IRQ EL1t
 	kernel_ventry	1, t, 64, fiq		// FIQ EL1h
 	kernel_ventry	1, t, 64, error		// Error EL1t
+=======
+	kernel_ventry	1, sync_invalid			// Synchronous EL1t
+	kernel_ventry	1, irq_invalid			// IRQ EL1t
+	kernel_ventry	1, fiq_invalid			// FIQ EL1t
+	kernel_ventry	1, error_invalid		// Error EL1t
+
+	kernel_ventry	1, sync				// Synchronous EL1h ///linux异常向量入口，这里是同步异常，kernel_ventry宏展开为el1_sync
+	kernel_ventry	1, irq				// IRQ EL1h
+	kernel_ventry	1, fiq				// FIQ EL1h
+	kernel_ventry	1, error			// Error EL1h
+>>>>>>> 0826f49974a2 (补充异常处理部分解析)
 
 	///linux异常向量入口，这里是同步异常，kernel_ventry宏展开为el1_sync
 	kernel_ventry	1, h, 64, sync		// Synchronous EL1h
