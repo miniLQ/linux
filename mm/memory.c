@@ -3494,7 +3494,7 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 		goto out;
 
 	entry = pte_to_swp_entry(vmf->orig_pte);  ///获取换出页标识符
-	if (unlikely(non_swap_entry(entry))) {
+	if (unlikely(non_swap_entry(entry))) {   ///非换出页标识符，处理迁移页面，复用swap机制
 		if (is_migration_entry(entry)) {
 			migration_entry_wait(vma->vm_mm, vmf->pmd,
 					     vmf->address);
@@ -3519,14 +3519,14 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 		goto out;
 
 	delayacct_set_flag(current, DELAYACCT_PF_SWAPIN);
-	page = lookup_swap_cache(entry, vma, vmf->address);
+	page = lookup_swap_cache(entry, vma, vmf->address);  ///在swap_cache查找
 	swapcache = page;
 
-	if (!page) {
+	if (!page) {  ///swap_cache没找到，新分配page，并加入swap_page
 		if (data_race(si->flags & SWP_SYNCHRONOUS_IO) &&
-		    __swap_count(entry) == 1) {
+		    __swap_count(entry) == 1) { ///需要启动慢速IO操作，此时根据局部性原理，还做预取动作来优化性能
 			/* skip swapcache */
-			page = alloc_page_vma(GFP_HIGHUSER_MOVABLE, vma,
+			page = alloc_page_vma(GFP_HIGHUSER_MOVABLE, vma,    ///分配page
 							vmf->address);
 			if (page) {
 				__SetPageLocked(page);
@@ -3543,15 +3543,15 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 				if (shadow)
 					workingset_refault(page, shadow);
 
-				lru_cache_add(page);
+				lru_cache_add(page);   						///page加入swap_cache
 
 				/* To provide entry to swap_readpage() */
 				set_page_private(page, entry.val);
-				swap_readpage(page, true);
+				swap_readpage(page, true);                 ///从swap文件读取数据到page
 				set_page_private(page, 0);
 			}
 		} else {
-			page = swapin_readahead(entry, GFP_HIGHUSER_MOVABLE,
+			page = swapin_readahead(entry, GFP_HIGHUSER_MOVABLE,  ///从swap文件读取数据到page
 						vmf);
 			swapcache = page;
 		}
@@ -3570,7 +3570,7 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 		}
 
 		/* Had to read the page from swap area: Major fault */
-		ret = VM_FAULT_MAJOR;
+		ret = VM_FAULT_MAJOR;  ///需要启动慢速IO操作，标记为主缺页
 		count_vm_event(PGMAJFAULT);
 		count_memcg_event_mm(vma->vm_mm, PGMAJFAULT);
 	} else if (PageHWPoison(page)) {
@@ -3613,6 +3613,7 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 	/*
 	 * Back out if somebody else already faulted in this pte.
 	 */
+///重新获取页表项
 	vmf->pte = pte_offset_map_lock(vma->vm_mm, vmf->pmd, vmf->address,
 			&vmf->ptl);
 	if (unlikely(!pte_same(*vmf->pte, vmf->orig_pte)))
@@ -3633,10 +3634,10 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 	 * must be called after the swap_free(), or it will never succeed.
 	 */
 
-	inc_mm_counter_fast(vma->vm_mm, MM_ANONPAGES);
-	dec_mm_counter_fast(vma->vm_mm, MM_SWAPENTS);
-	pte = mk_pte(page, vma->vm_page_prot);
-	if ((vmf->flags & FAULT_FLAG_WRITE) && reuse_swap_page(page, NULL)) {
+	inc_mm_counter_fast(vma->vm_mm, MM_ANONPAGES);   ///匿页也计数增加
+	dec_mm_counter_fast(vma->vm_mm, MM_SWAPENTS);    ///swap页面技术减少
+	pte = mk_pte(page, vma->vm_page_prot);           ///拼接页表项
+	if ((vmf->flags & FAULT_FLAG_WRITE) && reuse_swap_page(page, NULL)) { ///reuse_swap_page，只被当前vma使用，直接改为可写，不做写时复制
 		pte = maybe_mkwrite(pte_mkdirty(pte), vma);
 		vmf->flags &= ~FAULT_FLAG_WRITE;
 		ret |= VM_FAULT_WRITE;
@@ -3649,7 +3650,7 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 		pte = pte_mkuffd_wp(pte);
 		pte = pte_wrprotect(pte);
 	}
-	set_pte_at(vma->vm_mm, vmf->address, vmf->pte, pte);
+	set_pte_at(vma->vm_mm, vmf->address, vmf->pte, pte);   ///填充页表
 	arch_do_swap_page(vma->vm_mm, vma, vmf->address, pte, vmf->orig_pte);
 	vmf->orig_pte = pte;
 
@@ -3658,13 +3659,15 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 		page_add_new_anon_rmap(page, vma, vmf->address, false);
 		lru_cache_add_inactive_or_unevictable(page, vma);
 	} else {
-		do_page_add_anon_rmap(page, vma, vmf->address, exclusive);
+		do_page_add_anon_rmap(page, vma, vmf->address, exclusive);  ///加入rmap
 	}
 
-	swap_free(entry);
+	swap_free(entry); ///递减交换页槽的引用计数
+
+///mem_cgroup_swap_full：交换页槽使用超过总数的1/2，或者vma被锁内存，尝试释放swap页面
 	if (mem_cgroup_swap_full(page) ||
 	    (vma->vm_flags & VM_LOCKED) || PageMlocked(page))
-		try_to_free_swap(page);
+		try_to_free_swap(page);   ///引用计数为0，尝试释放swap cache
 	unlock_page(page);
 	if (page != swapcache && swapcache) {
 		/*
@@ -3679,8 +3682,8 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 		put_page(swapcache);
 	}
 
-	if (vmf->flags & FAULT_FLAG_WRITE) {
-		ret |= do_wp_page(vmf);
+	if (vmf->flags & FAULT_FLAG_WRITE) {   ///处理私有匿名页
+		ret |= do_wp_page(vmf);            ///写时复制
 		if (ret & VM_FAULT_ERROR)
 			ret &= VM_FAULT_ERROR;
 		goto out;
