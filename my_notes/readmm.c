@@ -159,3 +159,36 @@ alloc_zeroed_user_highpage_movable(struct vm_area_struct * vma, unsigned long va
 
 
 vm_mmap_pgoff
+
+
+do_page_fault(unsigned long far, unsigned int esr, struct pt_regs * regs)
+
+fixup_exception(struct pt_regs * regs)
+
+page
+
+/*
+ * page描述一个物理页面
+ */
+struct page {
+	unsigned long flags;
+	atomic_t      _count;
+	atomic_t      _mapcount;
+	unsigned long private;
+	struct address_space *mapping; 
+	pgoff_t       index;
+	struct list_head lru;
+	void *        *virtual;
+} _struct_page_alignment;
+
+
+
+
+
+get_page
+
+
+
+
+
+

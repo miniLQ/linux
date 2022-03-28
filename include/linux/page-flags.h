@@ -101,29 +101,29 @@
  * SPARSEMEM_EXTREME with !SPARSEMEM_VMEMMAP).
  */
 enum pageflags {
-	PG_locked,		/* Page is locked. Don't touch. */
-	PG_referenced,
-	PG_uptodate,
-	PG_dirty,
-	PG_lru,
+	PG_locked,		/* Page is locked. Don't touch. */ ///表示页面已经上锁；如果该比特位置位，说明已经被锁，内存管理其他模块不能访问这个页面，防止竞争
+	PG_referenced, ///同PG_active一起，用于控制页面的活跃程度，在kswapd页面回收中使用；
+	PG_uptodate,   ///表示页面的数据已经从块设备成功读取到内存页面；
+	PG_dirty,      ///表示页面内容发生改变，这个页面为脏的，即页面内容被改写，还没同步到外部存储器
+	PG_lru,        ///表示页面加入了LRU链表中，内核使用LRU链表来管理活跃和不活跃页面；
 	PG_active,
 	PG_workingset,
 	PG_waiters,		/* Page has waiters, check its waitqueue. Must be bit #7 and in the same byte as "PG_locked" */
-	PG_error,
-	PG_slab,
+	PG_error,       /////表示页面操作过程中发生错误时会设置该位；
+	PG_slab,        ///页面用于slab分配器
 	PG_owner_priv_1,	/* Owner use. If pagecache, fs may use*/
 	PG_arch_1,
 	PG_reserved,
 	PG_private,		/* If pagecache, has fs-private data */
 	PG_private_2,		/* If pagecache, has fs aux data */
-	PG_writeback,		/* Page is under writeback */
+	PG_writeback,		/* Page is under writeback */  ///表示页面的内容正在向块设备进行会写
 	PG_head,		/* A head page */
 	PG_mappedtodisk,	/* Has blocks allocated on-disk */
-	PG_reclaim,		/* To be reclaimed asap */
-	PG_swapbacked,		/* Page is backed by RAM/swap */
-	PG_unevictable,		/* Page is "unevictable"  */
+	PG_reclaim,		/* To be reclaimed asap */           ///表示这个页面马上要被回收
+	PG_swapbacked,		/* Page is backed by RAM/swap */ ///表示页面具有swap缓存功能，通过匿名页面才可以写回swap分区
+	PG_unevictable,		/* Page is "unevictable"  */     ///表示这个页面不能回收
 #ifdef CONFIG_MMU
-	PG_mlocked,		/* Page is vma mlocked */
+	PG_mlocked,		/* Page is vma mlocked */   ///表示页面对应的vma处于mlocked状态；
 #endif
 #ifdef CONFIG_ARCH_USES_PG_UNCACHED
 	PG_uncached,		/* Page has been mapped as uncached */
@@ -147,6 +147,7 @@ enum pageflags {
 	PG_checked = PG_owner_priv_1,
 
 	/* SwapBacked */
+	///表示页面处于交换缓存
 	PG_swapcache = PG_owner_priv_1,	/* Swap page: swp_entry_t in private */
 
 	/* Two page bits are conscripted by FS-Cache to maintain local caching
