@@ -268,10 +268,10 @@ struct rmap_walk_control {
 	 * Otherwise, return true.
 	 */
 	bool (*rmap_one)(struct page *page, struct vm_area_struct *vma,
-					unsigned long addr, void *arg);
-	int (*done)(struct page *page);
+					unsigned long addr, void *arg);                   ///断开某个vma上映射的PTE
+	int (*done)(struct page *page);                                   ///判断是否断开成功
 	struct anon_vma *(*anon_lock)(struct page *page);
-	bool (*invalid_vma)(struct vm_area_struct *vma, void *arg);
+	bool (*invalid_vma)(struct vm_area_struct *vma, void *arg);       ///跳过无效的vma
 };
 
 void rmap_walk(struct page *page, struct rmap_walk_control *rwc);

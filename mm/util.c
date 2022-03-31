@@ -659,7 +659,7 @@ static inline void *__page_rmapping(struct page *page)
 	unsigned long mapping;
 
 	mapping = (unsigned long)page->mapping;
-	mapping &= ~PAGE_MAPPING_FLAGS;
+	mapping &= ~PAGE_MAPPING_FLAGS;          ///清除低位标记位
 
 	return (void *)mapping;
 }

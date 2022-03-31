@@ -2281,7 +2281,7 @@ static void rmap_walk_anon(struct page *page, struct rmap_walk_control *rwc,
 	struct anon_vma_chain *avc;
 
 	if (locked) {
-		anon_vma = page_anon_vma(page);
+		anon_vma = page_anon_vma(page);     ///从page获取av数据结构 
 		/* anon_vma disappear under us? */
 		VM_BUG_ON_PAGE(!anon_vma, page);
 	} else {
@@ -2292,9 +2292,11 @@ static void rmap_walk_anon(struct page *page, struct rmap_walk_control *rwc,
 
 	pgoff_start = page_to_pgoff(page);
 	pgoff_end = pgoff_start + thp_nr_pages(page) - 1;
+
+///遍历av的红黑树中的avc
 	anon_vma_interval_tree_foreach(avc, &anon_vma->rb_root,
 			pgoff_start, pgoff_end) {
-		struct vm_area_struct *vma = avc->vma;
+		struct vm_area_struct *vma = avc->vma;            ///从avc获得va
 		unsigned long address = vma_address(page, vma);
 
 		VM_BUG_ON_VMA(address == -EFAULT, vma);
@@ -2303,7 +2305,7 @@ static void rmap_walk_anon(struct page *page, struct rmap_walk_control *rwc,
 		if (rwc->invalid_vma && rwc->invalid_vma(vma, rwc->arg))
 			continue;
 
-		if (!rwc->rmap_one(page, vma, address, rwc->arg))
+		if (!rwc->rmap_one(page, vma, address, rwc->arg))   ///解除PTE映射
 			break;
 		if (rwc->done && rwc->done(page))
 			break;
