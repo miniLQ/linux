@@ -224,4 +224,11 @@ anon_vma
 
 anon_vma_chain
 
-do_
+do_anonymous_page(struct vm_fault * vmf)
+
+
+dup_mmap(struct mm_struct * mm, struct mm_struct * oldmm)
+
+copy_page_range(struct vm_area_struct * dst_vma, struct vm_area_struct * src_vma)
+
+
