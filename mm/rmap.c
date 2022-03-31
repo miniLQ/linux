@@ -1207,7 +1207,7 @@ void page_add_new_anon_rmap(struct page *page,
 		atomic_set(&page->_mapcount, 0); ///设置_mapcount=0，初始值为-1
 	}
 	__mod_lruvec_page_state(page, NR_ANON_MAPPED, nr); ///增加页面锁在zone的匿名页面的计数，匿名页面计数类型为NR_ANON_MAPPED
-	__page_set_anon_rmap(page, vma, address, 1);  //设置匿名页面
+	__page_set_anon_rmap(page, vma, address, 1);  //设置匿名页面,page->mapping指向av
 }
 
 /**
