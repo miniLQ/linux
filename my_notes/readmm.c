@@ -187,8 +187,16 @@ struct page {
 
 get_page
 
+page_mapping(struct page * page)
 
 
 
+page_mapped(struct page * page)
 
 
+anon_vma
+
+
+anon_vma_chain
+
+do_
