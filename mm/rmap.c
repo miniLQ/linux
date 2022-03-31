@@ -189,7 +189,7 @@ int __anon_vma_prepare(struct vm_area_struct *vma)
 	might_sleep();
 
 
-	avc = anon_vma_chain_alloc(GFP_KERNEL); ///分配一个anon_vma_chain
+	avc = anon_vma_chain_alloc(GFP_KERNEL); ///分配一个anon_vma_chain, 从slab分配
 	if (!avc)
 		goto out_enomem;
 	
@@ -207,8 +207,8 @@ int __anon_vma_prepare(struct vm_area_struct *vma)
 	/* page_table_lock to protect against threads */
 	spin_lock(&mm->page_table_lock); ///申请一个自旋锁
 	if (likely(!vma->anon_vma)) {
-		vma->anon_vma = anon_vma;   ///vma指向刚申请的anon_vma
-		anon_vma_chain_link(vma, avc, anon_vma);
+		vma->anon_vma = anon_vma;   					///vma指向刚申请的anon_vma
+		anon_vma_chain_link(vma, avc, anon_vma);        ///将avc分别添加到vma,av中
 		/* vma reference or self-parent link for new root */
 		anon_vma->degree++;
 		allocated = NULL;
@@ -328,6 +328,12 @@ int anon_vma_clone(struct vm_area_struct *dst, struct vm_area_struct *src)
  * the corresponding VMA in the parent process is attached to.
  * Returns 0 on success, non-zero on failure.
  */
+
+/***********************************************************************
+ * func:为子进程创建av数据结构，把vma绑定到子进程的av中
+ * vma: 子进程vma
+ * pvma: 父进程的vma
+ ***********************************************************************/
 int anon_vma_fork(struct vm_area_struct *vma, struct vm_area_struct *pvma)
 {
 	struct anon_vma_chain *avc;
@@ -335,7 +341,7 @@ int anon_vma_fork(struct vm_area_struct *vma, struct vm_area_struct *pvma)
 	int error;
 
 	/* Don't bother if the parent process has no anon_vma here. */
-	if (!pvma->anon_vma)
+	if (!pvma->anon_vma)  ///若父进程没有av，就不需要绑定了
 		return 0;
 
 	/* Drop inherited anon_vma, we'll reuse existing or allocate new. */
@@ -1069,7 +1075,7 @@ static void __page_set_anon_rmap(struct page *page,
 	 */
 	anon_vma = (void *) anon_vma + PAGE_MAPPING_ANON;
 	WRITE_ONCE(page->mapping, (struct address_space *) anon_vma);
-	page->index = linear_page_index(vma, address);
+	page->index = linear_page_index(vma, address);   ///计算address在vma中是第几个页面
 }
 
 /**

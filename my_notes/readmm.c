@@ -186,6 +186,7 @@ struct page {
 
 get_page
 
+page_mapping(struct page * page)
 
 
 PG_locked
@@ -215,5 +216,12 @@ https://cloud.tencent.com/developer/article/1700399
 	https://blog.51cto.com/u_15015138/2557286
 	https://www.cnblogs.com/arnoldlu/p/8335483.html
 
+page_mapped(struct page * page)
 
 
+anon_vma
+
+
+anon_vma_chain
+
+do_

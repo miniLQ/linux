@@ -1308,6 +1308,7 @@ static struct anon_vma *reusable_anon_vma(struct vm_area_struct *old, struct vm_
  * anon_vmas being allocated, preventing vma merge in subsequent
  * mprotect.
  */
+ ///复用条件：两个vma必须相邻，VMA的内存policy相同，vm_file相同等。
 struct anon_vma *find_mergeable_anon_vma(struct vm_area_struct *vma)
 {
 	struct anon_vma *anon_vma = NULL;
