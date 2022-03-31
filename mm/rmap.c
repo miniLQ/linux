@@ -87,11 +87,11 @@ static inline struct anon_vma *anon_vma_alloc(void)
 {
 	struct anon_vma *anon_vma;
 
-	anon_vma = kmem_cache_alloc(anon_vma_cachep, GFP_KERNEL);
+	anon_vma = kmem_cache_alloc(anon_vma_cachep, GFP_KERNEL);  ///从slab分配一个结构体
 	if (anon_vma) {
-		atomic_set(&anon_vma->refcount, 1);
+		atomic_set(&anon_vma->refcount, 1);                     ///refcount成员设置1
 		anon_vma->degree = 1;	/* Reference for first vma */
-		anon_vma->parent = anon_vma;
+		anon_vma->parent = anon_vma;                            ///parent,root都指向自己
 		/*
 		 * Initialise the anon_vma root to point to itself. If called
 		 * from fork, the root will be reset to the parents anon_vma.
@@ -188,24 +188,26 @@ int __anon_vma_prepare(struct vm_area_struct *vma)
 
 	might_sleep();
 
-	avc = anon_vma_chain_alloc(GFP_KERNEL);
+
+	avc = anon_vma_chain_alloc(GFP_KERNEL); ///分配一个anon_vma_chain
 	if (!avc)
 		goto out_enomem;
-
+	
+///检查是否可以复用anon_vma
 	anon_vma = find_mergeable_anon_vma(vma);
-	allocated = NULL;
-	if (!anon_vma) {
+	allocated = NULL; 
+	if (!anon_vma) {  ///不能复用anon_vma，就新分配一个，并作初始化
 		anon_vma = anon_vma_alloc();
 		if (unlikely(!anon_vma))
 			goto out_enomem_free_avc;
 		allocated = anon_vma;
 	}
 
-	anon_vma_lock_write(anon_vma);
+	anon_vma_lock_write(anon_vma);  ///申请一个写者类型的信号量
 	/* page_table_lock to protect against threads */
-	spin_lock(&mm->page_table_lock);
+	spin_lock(&mm->page_table_lock); ///申请一个自旋锁
 	if (likely(!vma->anon_vma)) {
-		vma->anon_vma = anon_vma;
+		vma->anon_vma = anon_vma;   ///vma指向刚申请的anon_vma
 		anon_vma_chain_link(vma, avc, anon_vma);
 		/* vma reference or self-parent link for new root */
 		anon_vma->degree++;
@@ -1182,7 +1184,7 @@ void page_add_new_anon_rmap(struct page *page,
 	int nr = compound ? thp_nr_pages(page) : 1;
 
 	VM_BUG_ON_VMA(address < vma->vm_start || address >= vma->vm_end, vma);
-	__SetPageSwapBacked(page);
+	__SetPageSwapBacked(page);  ///设置page的标志位PG_swapbacked，表示这个页面可以交换到磁盘
 	if (compound) {
 		VM_BUG_ON_PAGE(!PageTransHuge(page), page);
 		/* increment count (starts at -1) */
@@ -1195,10 +1197,10 @@ void page_add_new_anon_rmap(struct page *page,
 		/* Anon THP always mapped first with PMD */
 		VM_BUG_ON_PAGE(PageTransCompound(page), page);
 		/* increment count (starts at -1) */
-		atomic_set(&page->_mapcount, 0);
+		atomic_set(&page->_mapcount, 0); ///设置_mapcount=0，初始值为-1
 	}
-	__mod_lruvec_page_state(page, NR_ANON_MAPPED, nr);
-	__page_set_anon_rmap(page, vma, address, 1);
+	__mod_lruvec_page_state(page, NR_ANON_MAPPED, nr); ///增加页面锁在zone的匿名页面的计数，匿名页面计数类型为NR_ANON_MAPPED
+	__page_set_anon_rmap(page, vma, address, 1);  //设置匿名页面
 }
 
 /**
