@@ -4226,7 +4226,7 @@ static vm_fault_t do_cow_fault(struct vm_fault *vmf)
 		return ret;
 	
 ///把vmf->page的内容复制到刚分配的cow_page
-	copy_user_highpage(vmf->cow_page, vmf-page, vmf->address, vma);
+	copy_user_highpage(vmf->cow_page, vmf->page, vmf->address, vma);
 	__SetPageUptodate(vmf->cow_page);
 
 	ret |= finish_fault(vmf);  ///使用vmf->cow_page制作PTE，设置到物理页面，建立映射，并添加到RMAP机制
