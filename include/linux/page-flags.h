@@ -111,7 +111,7 @@ enum pageflags {
 	PG_waiters,		/* Page has waiters, check its waitqueue. Must be bit #7 and in the same byte as "PG_locked" */
 	PG_error,       /////表示页面操作过程中发生错误时会设置该位；
 	PG_slab,        ///页面用于slab分配器
-	PG_owner_priv_1,	/* Owner use. If pagecache, fs may use*/
+	PG_owner_priv_1,	/* Owner use. If pagecache, fs may use*/ ///如果是pagecache页面，文件系统可能使用
 	PG_arch_1,
 	PG_reserved,
 	PG_private,		/* If pagecache, has fs-private data */

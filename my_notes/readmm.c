@@ -184,11 +184,36 @@ struct page {
 
 
 
-
 get_page
 
 
 
+PG_locked
+	page_zone
+	static inline struct zone *page_zone(const struct page *page)
+	static inline void set_page_zone(struct page *page, enum zone_type zone)
+
+set_page_zone(struct page * page, enum zone_type zone)
+
+PageAnon(struct page * page)
+
+
+//--------------------------------------------
+rmap 三个数据结构
+
+vm_area_struct
+
+anon_vma
+
+anon_vma_chain
+
+
+https://blog.csdn.net/u012489236/article/details/114734823
+
+https://cloud.tencent.com/developer/article/1700399
+	https://blog.csdn.net/u010923083/article/details/116456497
+	https://blog.51cto.com/u_15015138/2557286
+	https://www.cnblogs.com/arnoldlu/p/8335483.html
 
 
 
