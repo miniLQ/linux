@@ -26,8 +26,12 @@
  * the anon_vma object itself: we're guaranteed no page can be
  * pointing to this anon_vma once its vma list is empty.
  */
+ 
+ /**************************************************
+ * func:链接物理页面的page结构和vma的vm_area_struct
+ *************************************************/
 struct anon_vma {
-	struct anon_vma *root;		/* Root of this anon_vma tree */  ///指向anon_vma结构的根节点
+	struct anon_vma *root;		/* Root of this anon_vma tree */            ///指向anon_vma结构的根节点
 	struct rw_semaphore rwsem;	/* W: modification, R: walking the list */  ///保护anon_vma数据结构的读写信号量
 	/*
 	 * The refcount is taken on an anon_vma when there is no
@@ -74,6 +78,9 @@ struct anon_vma {
  * The "rb" field indexes on an interval tree the anon_vma_chains
  * which link all the VMAs associated with this anon_vma.
  */
+ /**************************************************
+ * func:链接枢纽
+ *************************************************/
 struct anon_vma_chain {
 	struct vm_area_struct *vma;   ///指向vma,可以指向父进程，也可以指向子进程
 	struct anon_vma *anon_vma;    ///指向anon_vma，可以指向父/子进程
