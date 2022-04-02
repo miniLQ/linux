@@ -202,6 +202,8 @@ PageAnon(struct page * page)
 //--------------------------------------------
 rmap 三个数据结构
 
+mm_struct
+
 vm_area_struct
 
 anon_vma
