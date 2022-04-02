@@ -361,10 +361,10 @@ int anon_vma_fork(struct vm_area_struct *vma, struct vm_area_struct *pvma)
 		return 0;
 
 	/* Then add our own anon_vma. */ 
-	anon_vma = anon_vma_alloc();              ///分配子进程的av和avc
+	anon_vma = anon_vma_alloc();              ///分配子进程的av
 	if (!anon_vma)
 		goto out_error;
-	avc = anon_vma_chain_alloc(GFP_KERNEL);
+	avc = anon_vma_chain_alloc(GFP_KERNEL);  ///分配子进程的avc
 	if (!avc)
 		goto out_error_free_anon_vma;
 
@@ -1075,8 +1075,8 @@ static void __page_set_anon_rmap(struct page *page,
 	 * could mistake the mapping for a struct address_space and crash.
 	 */
 	anon_vma = (void *) anon_vma + PAGE_MAPPING_ANON;
-	WRITE_ONCE(page->mapping, (struct address_space *) anon_vma);
-	page->index = linear_page_index(vma, address);   ///计算address在vma中是第几个页面
+	WRITE_ONCE(page->mapping, (struct address_space *) anon_vma);  ///page关联av
+	page->index = linear_page_index(vma, address);                 ///设置页在vma中的偏移
 }
 
 /**

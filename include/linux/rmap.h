@@ -150,10 +150,10 @@ int anon_vma_fork(struct vm_area_struct *, struct vm_area_struct *);
 
 static inline int anon_vma_prepare(struct vm_area_struct *vma)
 {
-	if (likely(vma->anon_vma))
+	if (likely(vma->anon_vma))       ///若该vma已经加入rmap系统，直接返回
 		return 0;
 
-	return __anon_vma_prepare(vma);
+	return __anon_vma_prepare(vma);  ///分配vma，并加入rmap系统
 }
 
 static inline void anon_vma_merge(struct vm_area_struct *vma,
