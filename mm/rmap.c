@@ -789,10 +789,10 @@ static bool page_referenced_one(struct page *page, struct vm_area_struct *vma,
 	};
 	int referenced = 0;
 
-	while (page_vma_mapped_walk(&pvmw)) {
+	while (page_vma_mapped_walk(&pvmw)) {  ///遍历页表，找出对应PTE
 		address = pvmw.address;
 
-		if (vma->vm_flags & VM_LOCKED) {
+		if (vma->vm_flags & VM_LOCKED) {  ///内存锁定，直接返回
 			page_vma_mapped_walk_done(&pvmw);
 			pra->vm_flags |= VM_LOCKED;
 			return false; /* To break the loop */
@@ -800,7 +800,7 @@ static bool page_referenced_one(struct page *page, struct vm_area_struct *vma,
 
 		if (pvmw.pte) {
 			if (ptep_clear_flush_young_notify(vma, address,
-						pvmw.pte)) {
+						pvmw.pte)) {      ///判断是否访问过，若有，referenced++，清除PTE_AF,刷新页面TLB
 				/*
 				 * Don't treat a reference through
 				 * a sequentially read mapping as such.
@@ -809,7 +809,7 @@ static bool page_referenced_one(struct page *page, struct vm_area_struct *vma,
 				 * already gone, the unmap path will have set
 				 * PG_referenced or activated the page.
 				 */
-				if (likely(!(vma->vm_flags & VM_SEQ_READ)))
+				if (likely(!(vma->vm_flags & VM_SEQ_READ)))    ///循序读，做弱访问引用处理，适合回收
 					referenced++;
 			}
 		} else if (IS_ENABLED(CONFIG_TRANSPARENT_HUGEPAGE)) {
@@ -861,6 +861,8 @@ static bool invalid_page_referenced_vma(struct vm_area_struct *vma, void *arg)
  * Quick test_and_clear_referenced for all mappings to a page,
  * returns the number of ptes which referenced the page.
  */
+ ///判断页面是否被访问过过，并返回引用的PTE个数，即引用这个page的用户进程空间虚拟页面的个数
+ ///就是利用rmap系统来统计访问、引用PTE的个数
 int page_referenced(struct page *page,
 		    int is_locked,
 		    struct mem_cgroup *memcg,
@@ -877,11 +879,11 @@ int page_referenced(struct page *page,
 		.anon_lock = page_lock_anon_vma_read,
 	};
 
-	*vm_flags = 0;
-	if (!pra.mapcount)
+	*vm_flags = 0; 
+	if (!pra.mapcount)  ///判断_mapcount是否大于等于0
 		return 0;
 
-	if (!page_rmapping(page))
+	if (!page_rmapping(page)) ///判断page->mapping是否有地址空间映射
 		return 0;
 
 	if (!is_locked && (!PageAnon(page) || PageKsm(page))) {
@@ -899,7 +901,7 @@ int page_referenced(struct page *page,
 		rwc.invalid_vma = invalid_page_referenced_vma;
 	}
 
-	rmap_walk(page, &rwc);
+	rmap_walk(page, &rwc);   ///遍历映射page的所有PTE，调用rmap_one()函数
 	*vm_flags = pra.vm_flags;
 
 	if (we_locked)

@@ -85,10 +85,10 @@ struct page {
 			 * lruvec->lru_lock.  Sometimes used as a generic list
 			 * by the page owner.
 			 */
-			struct list_head lru;
+			struct list_head lru;                                 ///page加入lru链表
 			/* See page-flags.h for PAGE_MAPPING_FLAGS */
-			struct address_space *mapping;  ///页面指向的地址空间
-			pgoff_t index;		/* Our offset within mapping. */ ///页面在映射空间的偏移量
+			struct address_space *mapping;                        ///页面指向的地址空间
+			pgoff_t index;		/* Our offset within mapping. */  ///页面在映射空间的偏移量
 			/**
 			 * @private: Mapping-private opaque data.
 			 * Usually used for buffer_heads if PagePrivate.

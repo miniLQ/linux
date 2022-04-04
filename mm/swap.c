@@ -399,11 +399,12 @@ static void __lru_cache_activate_page(struct page *page)
  * When a newly allocated page is not yet visible, so safe for non-atomic ops,
  * __SetPageReferenced(page) may be substituted for mark_page_accessed(page).
  */
+///若页框被访问，被调用
 void mark_page_accessed(struct page *page)
 {
 	page = compound_head(page);
 
-	if (!PageReferenced(page)) {
+	if (!PageReferenced(page)) {  ///PG_referenced==0，置1
 		SetPageReferenced(page);
 	} else if (PageUnevictable(page)) {
 		/*
@@ -411,7 +412,7 @@ void mark_page_accessed(struct page *page)
 		 * this list is never rotated or maintained, so marking an
 		 * evictable page accessed has no effect.
 		 */
-	} else if (!PageActive(page)) {
+	} else if (!PageActive(page)) {  ///页面被访问，但不是活跃，将访问位清零，加入到活跃链表
 		/*
 		 * If the page is on the LRU, queue it for activation via
 		 * lru_pvecs.activate_page. Otherwise, assume the page is on a

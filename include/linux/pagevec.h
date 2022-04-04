@@ -17,6 +17,7 @@
 struct page;
 struct address_space;
 
+///页向量组，批量处理，对一对页面执行同样操作
 struct pagevec {
 	unsigned char nr;
 	bool percpu_pvec_drained;
