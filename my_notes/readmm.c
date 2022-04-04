@@ -238,3 +238,28 @@ do_wp_page(struct vm_fault * vmf)
 
 try_to_unmap(page, refs)
 
+//=========================================================================
+lru_list
+
+lruvec
+
+pglist_data
+
+lru_cache_add(struct page * page)
+
+lru_to_page(head)
+
+mark_page_accessed(struct page * page)
+
+page_check_references(struct page * page, struct scan_control * sc)  ///
+
+page_referenced(struct page * page, int is_locked, struct mem_cgroup * memcg, unsigned long * vm_flags)
+
+
+
+
+
+
+
+
+
