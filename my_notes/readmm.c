@@ -267,7 +267,13 @@ kmem_cache_create(const char * name, unsigned int size, unsigned int align, slab
 
 kmem_cache
 
+slab_alloc(struct kmem_cache * s, gfp_t gfpflags, unsigned long addr, size_t orig_size)
+
+
 array_cache
 
 kmem_cache_node
+	slab_alloc(struct kmem_cache * s, gfp_t gfpflags, unsigned long addr, size_t orig_size)
+
+___cache_free(struct kmem_cache * cache, void * x, unsigned long addr)
 
