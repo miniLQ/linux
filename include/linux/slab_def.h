@@ -8,43 +8,64 @@
 /*
  * Definitions unique to the original Linux SLAB allocator.
  */
-
+///每个slab描述符，都有一个struct kmem_cache数据结构来抽象描述
 struct kmem_cache {
-	struct array_cache __percpu *cpu_cache;  ///对象缓存池，每个CPU一个
+	struct array_cache __percpu *cpu_cache;  ///本地缓存池，每个CPU一个
 
 /* 1) Cache tunables. Protected by slab_mutex */
-	unsigned int batchcount; ///当本地的对象缓存池为空时，需要从共享缓存池中获取batchcount个对象到本地缓存池
-	unsigned int limit; ///当本地缓存池空闲数目大于limit时，需要释放一些对象
+	///当本地的对象缓存池为空时，需要从共享缓存池或者slans_partial/slabs_free中，
+	///获取batchcount个对象到本地缓存池
+	unsigned int batchcount; 	
+
+	///当本地缓存池空闲数目大于limit时，需要释放一些对象，就是batchcount个，便于内核回收或销毁
+	unsigned int limit; 
+	
 	unsigned int shared; ///用于多核系统
 
-	unsigned int size; ///对象的长度
+	unsigned int size; ///对象的长度，align对齐
 	struct reciprocal_value reciprocal_buffer_size;
 /* 2) touched by every alloc & free from the backend */
+	///对象分配掩码
+	slab_flags_t flags;		/* constant flags */      
 
-	slab_flags_t flags;		/* constant flags *////对象分配掩码
-	unsigned int num;		/* # of objs per slab */
+	///一个slab最多可以有多少个对象
+	unsigned int num;		/* # of objs per slab */  
 
 /* 3) cache_grow/shrink */
 	/* order of pgs per slab (2^n) */
-	unsigned int gfporder;///一个slab占用多个2的order次方物理页面
+	///一个slab占用多个2的order次方物理页面
+	unsigned int gfporder;							
 
 	/* force GFP flags, e.g. GFP_DMA */
 	gfp_t allocflags;
+	
+	///一个slab分配器有多少个不同的高速缓存行，用于着色
+	size_t colour;			/* cache colouring range */ 
+	
+	///一个着色区长度，和L1高速缓存行大小相同
+	unsigned int colour_off;	/* colour offset */     
 
-	size_t colour;			/* cache colouring range */ ///表示一个slab有多个cacheline用于着色
-	unsigned int colour_off;	/* colour offset */
-	struct kmem_cache *freelist_cache;
-	unsigned int freelist_size;///每个对象要占用1字节来存放freelists
+	///用于OFF_SLAB模式的slab分配器，使用额外的内存来保存slab管理区域
+	struct kmem_cache *freelist_cache; 
+
+	///每个对象要占用1字节来存放freelists
+	unsigned int freelist_size;
 
 	/* constructor func */
 	void (*ctor)(void *obj);
 
 /* 4) cache creation/removal */
-	const char *name;       ///slab描述符名字
-	struct list_head list;  ///链表节点，用于把slab描述符添加到全局链表slab_caches中
-	int refcount;           ///本描述符引用计数
-	int object_size;        ///对象实际大小
-	int align;              ///对齐长度
+	///slab描述符名字
+	const char *name;      
+	///链表节点，用于把slab描述符添加到全局链表slab_caches中
+	struct list_head list;  
+	///本描述符引用计数
+	int refcount;           
+	
+	///对象实际大小
+	int object_size;   
+	 ///对齐长度
+	int align;             
 
 /* 5) statistics */
 #ifdef CONFIG_DEBUG_SLAB
@@ -81,10 +102,11 @@ struct kmem_cache {
 	unsigned int *random_seq;
 #endif
 
-	unsigned int useroffset;	/* Usercopy region offset */   ///Usercopy区域的偏移量
-	unsigned int usersize;		/* Usercopy region size */     ///Usercopy区域大小
+	unsigned int useroffset;	/* Usercopy region offset */
+	unsigned int usersize;		/* Usercopy region size */
 
-	struct kmem_cache_node *node[MAX_NUMNODES]; ///slab节点，在NUMA系统中，每个节点有一个kmem_cache_node数据结构
+	///slab节点，在NUMA系统中，每个节点有一个kmem_cache_node数据结构
+	struct kmem_cache_node *node[MAX_NUMNODES]; 
 };
 
 static inline void *nearest_obj(struct kmem_cache *cache, struct page *page,
