@@ -328,7 +328,7 @@ struct vm_area_struct {
 	/* linked list of VM areas per task, sorted by address */
 	struct vm_area_struct *vm_next, *vm_prev;   ///进程的所有vma连接成一个链表
 
-	struct rb_node vm_rb; ///VMA作为一个节点，加入mm_struct中的红黑树
+	struct rb_node vm_rb; /// ///每个进程的mm_struct都有一个红黑树，VMA作为一个节点，加入该红黑树
 
 	/*
 	 * Largest free memory gap in bytes to the left of this VMA.
@@ -420,7 +420,7 @@ struct mm_struct {
 #endif
 		unsigned long task_size;	/* size of task vm space */
 		unsigned long highest_vm_end;	/* highest vma end address */
-		pgd_t * pgd;  ///一级页表
+		pgd_t * pgd;  ///指向进程一级页表
 
 #ifdef CONFIG_MEMBARRIER
 		/**

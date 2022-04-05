@@ -1952,9 +1952,9 @@ int __kmem_cache_create(struct kmem_cache *cachep, slab_flags_t flags)
 	 * unaligned accesses for some archs when redzoning is used, and makes
 	 * sure any on-slab bufctl's are also correctly aligned.
 	 */
-	size = ALIGN(size, BYTES_PER_WORD);
+	size = ALIGN(size, BYTES_PER_WORD);   ///描述符大小和系统字长度对齐
 
-	if (flags & SLAB_RED_ZONE) {
+	if (flags & SLAB_RED_ZONE) {   ///检查是否溢出
 		ralign = REDZONE_ALIGN;
 		/* If redzoning, ensure that the second redzone is suitably
 		 * aligned, by adjusting the object size accordingly. */
@@ -1972,7 +1972,7 @@ int __kmem_cache_create(struct kmem_cache *cachep, slab_flags_t flags)
 	 * 4) Store it.
 	 */
 	cachep->align = ralign;
-	cachep->colour_off = cache_line_size();
+	cachep->colour_off = cache_line_size();            ///着色区与L1高速缓存cacheline相同
 	/* Offset must be a multiple of the alignment. */
 	if (cachep->colour_off < cachep->align)
 		cachep->colour_off = cachep->align;
@@ -2038,17 +2038,18 @@ int __kmem_cache_create(struct kmem_cache *cachep, slab_flags_t flags)
 	}
 #endif
 
-	if (set_objfreelist_slab_cache(cachep, size, flags)) {
+///slab分配器支持3种slab模式
+	if (set_objfreelist_slab_cache(cachep, size, flags)) {   ///数组freelist长度 < slab对象大小
 		flags |= CFLGS_OBJFREELIST_SLAB;
 		goto done;
 	}
 
-	if (set_off_slab_cache(cachep, size, flags)) {
+	if (set_off_slab_cache(cachep, size, flags)) {    ///slab分配器剩余空间 < freelist数组大小
 		flags |= CFLGS_OFF_SLAB;
 		goto done;
 	}
 
-	if (set_on_slab_cache(cachep, size, flags))
+	if (set_on_slab_cache(cachep, size, flags))      ///slab分配器剩余空间 > slab管理数组大小
 		goto done;
 
 	return -E2BIG;
@@ -2083,7 +2084,7 @@ done:
 			kmalloc_slab(cachep->freelist_size, 0u);
 	}
 
-	err = setup_cpu_cache(cachep, gfp);
+	err = setup_cpu_cache(cachep, gfp);    ///继续配置slab描述符
 	if (err) {
 		__kmem_cache_release(cachep);
 		return err;

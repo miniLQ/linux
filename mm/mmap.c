@@ -544,7 +544,7 @@ static int find_vma_links(struct mm_struct *mm, unsigned long addr,
 
 		if (vma_tmp->vm_end > addr) {
 			/* Fail if an existing vma overlaps the area */
-			if (vma_tmp->vm_start < end)
+			if (vma_tmp->vm_start < end)   ///发现有VMA地址重叠
 				return -ENOMEM;
 			__rb_link = &__rb_parent->rb_left;
 		} else {
@@ -679,8 +679,8 @@ __vma_link(struct mm_struct *mm, struct vm_area_struct *vma,
 	struct vm_area_struct *prev, struct rb_node **rb_link,
 	struct rb_node *rb_parent)
 {
-	__vma_link_list(mm, vma, prev);
-	__vma_link_rb(mm, vma, rb_link, rb_parent);
+	__vma_link_list(mm, vma, prev);              ///vma插入mmap链表
+	__vma_link_rb(mm, vma, rb_link, rb_parent);  ///vma插入红黑树
 }
 
 static void vma_link(struct mm_struct *mm, struct vm_area_struct *vma,
@@ -2279,13 +2279,13 @@ struct vm_area_struct *find_vma(struct mm_struct *mm, unsigned long addr)
 
 	mmap_assert_locked(mm);
 	/* Check the cache first. */
-	vma = vmacache_find(mm, addr);
+	vma = vmacache_find(mm, addr);    ///存放最近访问过的4个VMA
 	if (likely(vma))
 		return vma;
 
 	rb_node = mm->mm_rb.rb_node;
 
-	while (rb_node) {
+	while (rb_node) {    ///遍历红黑树，查找满足要求的VMA
 		struct vm_area_struct *tmp;
 
 		tmp = rb_entry(rb_node, struct vm_area_struct, vm_rb);
@@ -3196,6 +3196,7 @@ int insert_vm_struct(struct mm_struct *mm, struct vm_area_struct *vma)
 	struct vm_area_struct *prev;
 	struct rb_node **rb_link, *rb_parent;
 
+///查找要插入的位置
 	if (find_vma_links(mm, vma->vm_start, vma->vm_end,
 			   &prev, &rb_link, &rb_parent))
 		return -ENOMEM;
@@ -3215,12 +3216,12 @@ int insert_vm_struct(struct mm_struct *mm, struct vm_area_struct *vma)
 	 * using the existing file pgoff checks and manipulations.
 	 * Similarly in do_mmap and in do_brk_flags.
 	 */
-	if (vma_is_anonymous(vma)) {
+	if (vma_is_anonymous(vma)) {   ///判断是否为匿名页
 		BUG_ON(vma->anon_vma);
 		vma->vm_pgoff = vma->vm_start >> PAGE_SHIFT;
 	}
 
-	vma_link(mm, vma, prev, rb_link, rb_parent);
+	vma_link(mm, vma, prev, rb_link, rb_parent);   //将vma插入mm的vma链表中
 	return 0;
 }
 

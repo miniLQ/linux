@@ -251,10 +251,11 @@ static struct kmem_cache *create_cache(const char *name,
 		useroffset = usersize = 0;
 
 	err = -ENOMEM;
-	s = kmem_cache_zalloc(kmem_cache, GFP_KERNEL);
+	s = kmem_cache_zalloc(kmem_cache, GFP_KERNEL);    ///分配kmem_cache数据结构
 	if (!s)
 		goto out;
-
+	
+///填充kmem_cache数据结构
 	s->name = name;
 	s->size = s->object_size = object_size;
 	s->align = align;
@@ -262,12 +263,12 @@ static struct kmem_cache *create_cache(const char *name,
 	s->useroffset = useroffset;
 	s->usersize = usersize;
 
-	err = __kmem_cache_create(s, flags);
+	err = __kmem_cache_create(s, flags);   ///创建slab缓存描述符
 	if (err)
 		goto out_free_cache;
 
 	s->refcount = 1;
-	list_add(&s->list, &slab_caches);
+	list_add(&s->list, &slab_caches);   ///新建的slab描述符s，添加到全局链表slab_caches中
 out:
 	if (err)
 		return ERR_PTR(err);
@@ -327,7 +328,7 @@ kmem_cache_create_usercopy(const char *name,
 		static_branch_enable(&slub_debug_enabled);
 #endif
 
-	mutex_lock(&slab_mutex);
+	mutex_lock(&slab_mutex);   ///申请一个互斥量
 
 	err = kmem_cache_sanity_check(name, size);
 	if (err) {
@@ -346,7 +347,7 @@ kmem_cache_create_usercopy(const char *name,
 	 * case, and we'll just provide them with a sanitized version of the
 	 * passed flags.
 	 */
-	flags &= CACHE_CREATE_MASK;
+	flags &= CACHE_CREATE_MASK;  ///约束创建slab描述符的标志位
 
 	/* Fail closed on bad usersize of useroffset values. */
 	if (WARN_ON(!usersize && useroffset) ||
@@ -354,16 +355,17 @@ kmem_cache_create_usercopy(const char *name,
 		usersize = useroffset = 0;
 
 	if (!usersize)
-		s = __kmem_cache_alias(name, size, align, flags, ctor);
+		s = __kmem_cache_alias(name, size, align, flags, ctor);  ///查找是否有现成slab描述符可以用，如有直接跳出
 	if (s)
 		goto out_unlock;
 
-	cache_name = kstrdup_const(name, GFP_KERNEL);
+	cache_name = kstrdup_const(name, GFP_KERNEL);  ///分配一个缓冲区来存放slab描述符名字
 	if (!cache_name) {
 		err = -ENOMEM;
 		goto out_unlock;
 	}
 
+///创建slab描述符
 	s = create_cache(cache_name, size,
 			 calculate_alignment(flags, align, size),
 			 flags, useroffset, usersize, ctor, NULL);

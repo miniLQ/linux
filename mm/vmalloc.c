@@ -105,7 +105,7 @@ static int vmap_pte_range(pmd_t *pmd, unsigned long addr, unsigned long end,
 	unsigned long size = PAGE_SIZE;
 
 	pfn = phys_addr >> PAGE_SHIFT;
-	pte = pte_alloc_kernel_track(pmd, addr, mask);
+	pte = pte_alloc_kernel_track(pmd, addr, mask);  ///找到pte页表项
 	if (!pte)
 		return -ENOMEM;
 	do {
@@ -123,7 +123,7 @@ static int vmap_pte_range(pmd_t *pmd, unsigned long addr, unsigned long end,
 			continue;
 		}
 #endif
-		set_pte_at(&init_mm, addr, pte, pfn_pte(pfn, prot));
+		set_pte_at(&init_mm, addr, pte, pfn_pte(pfn, prot)); ///根据pages保存的物理页，填充页表
 		pfn++;
 	} while (pte += PFN_DOWN(size), addr += size, addr != end);
 	*mask |= PGTBL_PTE_MODIFIED;
