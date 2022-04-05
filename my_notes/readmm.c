@@ -256,6 +256,7 @@ page_check_references(struct page * page, struct scan_control * sc)  ///
 page_referenced(struct page * page, int is_locked, struct mem_cgroup * memcg, unsigned long * vm_flags)
 
 
+kmem_cache_create(const char * name, unsigned int size, unsigned int align, slab_flags_t flags, void(* ctor)(void *))
 
 
 

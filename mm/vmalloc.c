@@ -89,12 +89,12 @@ static int vmap_pte_range(pmd_t *pmd, unsigned long addr, unsigned long end,
 	u64 pfn;
 
 	pfn = phys_addr >> PAGE_SHIFT;
-	pte = pte_alloc_kernel_track(pmd, addr, mask);
+	pte = pte_alloc_kernel_track(pmd, addr, mask);  ///找到pte页表项
 	if (!pte)
 		return -ENOMEM;
 	do {
 		BUG_ON(!pte_none(*pte));
-		set_pte_at(&init_mm, addr, pte, pfn_pte(pfn, prot));
+		set_pte_at(&init_mm, addr, pte, pfn_pte(pfn, prot));  ///根据pages保存的物理页，填充页表
 		pfn++;
 	} while (pte++, addr += PAGE_SIZE, addr != end);
 	*mask |= PGTBL_PTE_MODIFIED;
