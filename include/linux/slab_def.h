@@ -40,11 +40,11 @@ struct kmem_cache {
 	void (*ctor)(void *obj);
 
 /* 4) cache creation/removal */
-	const char *name;  ///描述符的名称
-	struct list_head list;
-	int refcount;
-	int object_size; ///对象实际大小
-	int align;       ///对齐长度
+	const char *name;       ///slab描述符名字
+	struct list_head list;  ///链表节点，用于把slab描述符添加到全局链表slab_caches中
+	int refcount;           ///本描述符引用计数
+	int object_size;        ///对象实际大小
+	int align;              ///对齐长度
 
 /* 5) statistics */
 #ifdef CONFIG_DEBUG_SLAB
@@ -81,10 +81,10 @@ struct kmem_cache {
 	unsigned int *random_seq;
 #endif
 
-	unsigned int useroffset;	/* Usercopy region offset */
-	unsigned int usersize;		/* Usercopy region size */
+	unsigned int useroffset;	/* Usercopy region offset */   ///Usercopy区域的偏移量
+	unsigned int usersize;		/* Usercopy region size */     ///Usercopy区域大小
 
-	struct kmem_cache_node *node[MAX_NUMNODES];///用于NUMA系统
+	struct kmem_cache_node *node[MAX_NUMNODES]; ///slab节点，在NUMA系统中，每个节点有一个kmem_cache_node数据结构
 };
 
 static inline void *nearest_obj(struct kmem_cache *cache, struct page *page,
