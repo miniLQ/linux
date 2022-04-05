@@ -539,8 +539,8 @@ struct kmem_cache_node {
 	struct list_head slabs_free;
 	unsigned long total_slabs;	/* length of all slab lists */
 	unsigned long free_slabs;	/* length of free slab list only */
-	unsigned long free_objects;
-	unsigned int free_limit;
+	unsigned long free_objects;  ///三个链表中空闲对象总和
+	unsigned int free_limit;     ///所有slab分配器上容许空闲对象最大数目
 	unsigned int colour_next;	/* Per-node cache coloring */
 	struct array_cache *shared;	/* shared per node */
 	struct alien_cache **alien;	/* on other nodes */

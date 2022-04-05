@@ -42,7 +42,7 @@ __pfn_to_page(pfn)
 <include/linux/gfp.h>
 
 /********************************************************************
- * func:分配2的order次幂个连续的物理页面
+ * func: 
  * gfp_mask: 分配掩码
  * order: oder应该小于MAX_ORDER(默认11)
  *
@@ -104,7 +104,10 @@ void kfree(const void *)
 1.新创建一个slab描述符时，实际上没有分配物理页面；只有调用kmem_cache_alloc()时才真正从伙伴系统申请物理页面？
 那刚开始申请缓冲对象都会比较慢，申请次数多了之后，反而会更快(有空闲对象，直接获得)，这样理解正确吗？
 
+对的。
+
 2.创建一个新的slab分配器时，返回的是首页page；而page本身是否也是用slab实现的？如果是，这里是不是有个嵌套，鸡生蛋，还是蛋生机鸡问题？
+page存放在mm
 
 还有个疑问
 问题3：slab描述符的成员，slab节点，struct kmem_cache_node *node[MAX_NUMNODES]; ///slab节点，在NUMA系统中，每个节点有一个kmem_cache_node数据结构
@@ -262,5 +265,9 @@ kmem_cache_create(const char * name, unsigned int size, unsigned int align, slab
 
 
 
+kmem_cache
 
+array_cache
+
+kmem_cache_node
 
