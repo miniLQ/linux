@@ -321,14 +321,17 @@ struct vm_userfaultfd_ctx {};
 struct vm_area_struct {
 	/* The first cache line has the info for VMA tree walking. */
 
-	unsigned long vm_start;		/* Our start address within vm_mm. */  ///VMA在进程地址空间内的起始地址，结束地址
+	///VMA在进程地址空间内的起始地址，结束地址
+	unsigned long vm_start;		/* Our start address within vm_mm. */  
 	unsigned long vm_end;		/* The first byte after our end address
 					   within vm_mm. */
 
 	/* linked list of VM areas per task, sorted by address */
-	struct vm_area_struct *vm_next, *vm_prev;   ///进程的所有vma连接成一个链表
+	///进程的所有vma连接成一个链表
+	struct vm_area_struct *vm_next, *vm_prev;   
 
-	struct rb_node vm_rb; /// ///每个进程的mm_struct都有一个红黑树，VMA作为一个节点，加入该红黑树
+	///每个进程的mm_struct都有一个红黑树，VMA作为一个节点，加入该红黑树
+	struct rb_node vm_rb; /// 
 
 	/*
 	 * Largest free memory gap in bytes to the left of this VMA.
@@ -340,14 +343,18 @@ struct vm_area_struct {
 
 	/* Second cache line starts here. */
 
-	struct mm_struct *vm_mm;	/* The address space we belong to. */ ///指向vma所属进程的mm_struct
+	///指向vma所属进程的mm_struct
+	struct mm_struct *vm_mm;	/* The address space we belong to. */ 
 
 	/*
 	 * Access permissions of this VMA.
 	 * See vmf_insert_mixed_prot() for discussion.
 	 */
-	pgprot_t vm_page_prot;  ///vma的访问权限
-	unsigned long vm_flags;		/* Flags, see mm.h. */  ///描述该vma的一组标志位
+	 ///vma的访问权限
+	pgprot_t vm_page_prot;  
+	
+	///描述该vma的一组标志位
+	unsigned long vm_flags;		/* Flags, see mm.h. */  
 
 	/*
 	 * For areas with an address space and backing store,
@@ -364,17 +371,23 @@ struct vm_area_struct {
 	 * can only be in the i_mmap tree.  An anonymous MAP_PRIVATE, stack
 	 * or brk vma (with NULL file) can only be in an anon_vma list.
 	 */
-	struct list_head anon_vma_chain; /* Serialized by mmap_lock &     ///指向avc
+	 ///指向avc
+	struct list_head anon_vma_chain; /* Serialized by mmap_lock &     
 					  * page_table_lock */
-	struct anon_vma *anon_vma;	/* Serialized by page_table_lock */   ///指向anon_vma
+
+	///指向anon_vma
+	struct anon_vma *anon_vma;	/* Serialized by page_table_lock */   
 
 	/* Function pointers to deal with this struct. */
-	const struct vm_operations_struct *vm_ops;   ///指向操作方法集合，常用在文件映射
+	///指向操作方法集合，常用在文件映射
+	const struct vm_operations_struct *vm_ops;   
 
 	/* Information about our backing store: */
-	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE  ///指定文件映射的偏移量，单位页
+	///指定文件映射的偏移量，单位页
+	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE  
 					   units */
-	struct file * vm_file;		/* File we map to (can be NULL). */  ///指向映射的文件
+	 ///指向映射的文件
+	struct file * vm_file;		/* File we map to (can be NULL). */ 
 	void * vm_private_data;		/* was vm_pte (shared mem) */
 
 #ifdef CONFIG_SWAP
@@ -403,15 +416,20 @@ struct core_state {
 struct kioctx_table;
 struct mm_struct {
 	struct {
-		struct vm_area_struct *mmap;		/* list of VMAs */ ///进程里所有vma形成的一个单链表，mmap是表头
-		struct rb_root mm_rb;                                  ///vma红黑树的根节点
+		///进程里所有vma形成的一个单链表，mmap是表头
+		struct vm_area_struct *mmap;		/* list of VMAs */ 
+		
+		///vma红黑树的根节点
+		struct rb_root mm_rb;                                  
 		u64 vmacache_seqnum;                   /* per-thread vmacache */
 #ifdef CONFIG_MMU
+		///判断虚拟内存空间是否有足够空间，返回一段没有映射过的虚拟空间起始地址
 		unsigned long (*get_unmapped_area) (struct file *filp,
 				unsigned long addr, unsigned long len,
-				unsigned long pgoff, unsigned long flags);   ///判断虚拟内存空间是否有足够空间，返回一段没有映射过的虚拟空间起始地址
+				unsigned long pgoff, unsigned long flags);  
 #endif
-		unsigned long mmap_base;	/* base of mmap area */  ///mmap空间起始地址
+		///mmap空间起始地址
+		unsigned long mmap_base;	/* base of mmap area */  
 		unsigned long mmap_legacy_base;	/* base of mmap area in bottom-up allocations */
 #ifdef CONFIG_HAVE_ARCH_COMPAT_MMAP_BASES
 		/* Base addresses for compatible mmap() */

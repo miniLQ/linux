@@ -2999,7 +2999,8 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 							      vmf->address);
 		if (!new_page)
 			goto oom;
-	} else {   ///分配一个新物理页面，并且把old_page内容复制到new_page中
+	} else {   
+		///分配一个新物理页面，并且把old_page内容复制到new_page中
 		new_page = alloc_page_vma(GFP_HIGHUSER_MOVABLE, vma,
 				vmf->address);
 		if (!new_page)
@@ -3033,7 +3034,8 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 
 	/*
 	 * Re-check the pte - we dropped the lock
-	 */ ///重新读取PTE，并判定是否修改
+	 */ 
+	 ///重新读取PTE，并判定是否修改
 	vmf->pte = pte_offset_map_lock(mm, vmf->pmd, vmf->address, &vmf->ptl);
 	if (likely(pte_same(*vmf->pte, vmf->orig_pte))) {
 		if (old_page) {
@@ -3259,8 +3261,9 @@ static vm_fault_t do_wp_page(struct vm_fault *vmf)
 	if (unlikely(userfaultfd_wp(vmf->vma) &&
 		     mm_tlb_flush_pending(vmf->vma->vm_mm)))
 		flush_tlb_page(vmf->vma, vmf->address);
-
-	vmf->page = vm_normal_page(vma, vmf->address, vmf->orig_pte); ///查找缺页异常地址对应页面的page数据结构，返回为NULL,说明是一个特殊页面
+	
+	///查找缺页异常地址对应页面的page数据结构，返回为NULL,说明是一个特殊页面
+	vmf->page = vm_normal_page(vma, vmf->address, vmf->orig_pte); 
 	if (!vmf->page) {  ///处理特殊页面
 		/*
 		 * VM_MIXEDMAP !pfn_valid() case, or VM_SOFTDIRTY clear on a
@@ -3725,7 +3728,8 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	pte_t entry;
 
 	/* File mapping without ->vm_ops ? */
-	if (vma->vm_flags & VM_SHARED)    ///防止共享的vma进入匿名页面的缺页中断，本函数只处理私有匿名映射
+	 ///防止共享的vma进入匿名页面的缺页中断，本函数只处理私有匿名映射
+	if (vma->vm_flags & VM_SHARED)   
 		return VM_FAULT_SIGBUS;
 
 	/*
@@ -3738,7 +3742,8 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	 *
 	 * Here we only have mmap_read_lock(mm).
 	 */
-	if (pte_alloc(vma->vm_mm, vmf->pmd)) ///分配pte页表并填充到pmd
+	 ///分配pte页表并填充到pmd
+	if (pte_alloc(vma->vm_mm, vmf->pmd)) 
 		return VM_FAULT_OOM;
 
 	/* See comment in handle_pte_fault() */
@@ -3749,9 +3754,12 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	/* Use the zero-page for reads */
 	if (!(vmf->flags & FAULT_FLAG_WRITE) &&
 			!mm_forbids_zeropage(vma->vm_mm)) {
-		entry = pte_mkspecial(pfn_pte(my_zero_pfn(vmf->address), ///my_zero_pfn获取零页的页帧号
+		///my_zero_pfn获取零页的页帧号
+		entry = pte_mkspecial(pfn_pte(my_zero_pfn(vmf->address), 
 						vma->vm_page_prot));
-		vmf->pte = pte_offset_map_lock(vma->vm_mm, vmf->pmd,  ///获取pte页表项，同时获取锁保护
+		
+		///获取pte页表项，同时获取锁保护
+		vmf->pte = pte_offset_map_lock(vma->vm_mm, vmf->pmd,  
 				vmf->address, &vmf->ptl);
 		if (!pte_none(*vmf->pte)) {
 			update_mmu_tlb(vma, vmf->address, vmf->pte);
@@ -3770,9 +3778,11 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 
 ///处理vma可写情况
 	/* Allocate our own private page. */
-	if (unlikely(anon_vma_prepare(vma)))  ///为建立rmap做准备
+	///为建立rmap做准备
+	if (unlikely(anon_vma_prepare(vma)))  
 		goto oom;
-	page = alloc_zeroed_user_highpage_movable(vma, vmf->address);  ///分配一个可移动的匿名物理页面，优先使用高端内存(arm64不存在高端内存)
+	///分配一个可移动的匿名物理页面，优先使用高端内存(arm64不存在高端内存)
+	page = alloc_zeroed_user_highpage_movable(vma, vmf->address);  
 	if (!page)
 		goto oom;
 

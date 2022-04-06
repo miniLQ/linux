@@ -31,8 +31,11 @@
  * func:链接物理页面的page结构和vma的vm_area_struct
  *************************************************/
 struct anon_vma {
-	struct anon_vma *root;		/* Root of this anon_vma tree */            ///指向anon_vma结构的根节点
-	struct rw_semaphore rwsem;	/* W: modification, R: walking the list */  ///保护anon_vma数据结构的读写信号量
+	///指向anon_vma结构的根节点
+	struct anon_vma *root;		/* Root of this anon_vma tree */   
+	
+	///保护anon_vma数据结构的读写信号量
+	struct rw_semaphore rwsem;	/* W: modification, R: walking the list */  
 	/*
 	 * The refcount is taken on an anon_vma when there is no
 	 * guarantee that the vma of page tables will exist for
@@ -40,7 +43,8 @@ struct anon_vma {
 	 * the reference is responsible for clearing up the
 	 * anon_vma if they are the last user on release
 	 */
-	atomic_t refcount;   ///引用计数
+	 ///引用计数
+	atomic_t refcount;   
 
 	/*
 	 * Count of child anon_vmas and VMAs which points to this anon_vma.
@@ -49,8 +53,9 @@ struct anon_vma {
 	 * instead of forking new one. See comments in function anon_vma_clone.
 	 */
 	unsigned degree;
-
-	struct anon_vma *parent;	/* Parent of this anon_vma */  ///指向父anon_vma数据结构
+	
+	///指向父anon_vma数据结构
+	struct anon_vma *parent;	/* Parent of this anon_vma */  
 
 	/*
 	 * NOTE: the LSB of the rb_root.rb_node is set by
@@ -62,7 +67,8 @@ struct anon_vma {
 	 */
 
 	/* Interval tree of private "related" vmas */
-	struct rb_root_cached rb_root;   ///红黑树根节点，anon_vma内部有一颗红黑树
+	///红黑树根节点，anon_vma内部有一颗红黑树
+	struct rb_root_cached rb_root;   
 };
 
 /*
@@ -82,10 +88,17 @@ struct anon_vma {
  * func:链接枢纽
  *************************************************/
 struct anon_vma_chain {
-	struct vm_area_struct *vma;   ///指向vma,可以指向父进程，也可以指向子进程
-	struct anon_vma *anon_vma;    ///指向anon_vma，可以指向父/子进程
-	struct list_head same_vma;   /* locked by mmap_lock & page_table_lock */  ///把avc添加到vma的avc链表中
-	struct rb_node rb;			/* locked by anon_vma->rwsem */               ///把anon_vma添加到anon_vma的红黑树中
+	///指向vma,可以指向父进程，也可以指向子进程
+	struct vm_area_struct *vma;  
+
+	///指向anon_vma，可以指向父/子进程
+	struct anon_vma *anon_vma;    
+
+	///把avc添加到vma的avc链表中
+	struct list_head same_vma;   /* locked by mmap_lock & page_table_lock */  
+
+	 ///把anon_vma添加到anon_vma的红黑树中
+	struct rb_node rb;			/* locked by anon_vma->rwsem */              
 	unsigned long rb_subtree_last;
 #ifdef CONFIG_DEBUG_VM_RB
 	unsigned long cached_vma_start, cached_vma_last;

@@ -277,3 +277,35 @@ kmem_cache_node
 
 ___cache_free(struct kmem_cache * cache, void * x, unsigned long addr)
 
+
+task_struct
+
+struct mm_struct 
+
+vm_area_struct
+
+anon_vma
+
+anon_vma_chain
+
+ /**************************************************
+ * func:链接枢纽
+ *************************************************/
+struct anon_vma_chain {
+	///指向vma,可以指向父进程，也可以指向子进程
+	struct vm_area_struct *vma;  
+
+	///指向anon_vma，可以指向父/子进程
+	struct anon_vma *anon_vma;    
+
+	///把avc添加到vma的avc链表中
+	struct list_head same_vma;   /* locked by mmap_lock & page_table_lock */  
+
+	 ///把anon_vma添加到anon_vma的红黑树中
+	struct rb_node rb;			/* locked by anon_vma->rwsem */              
+...
+};
+
+
+
+

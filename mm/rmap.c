@@ -196,7 +196,9 @@ int __anon_vma_prepare(struct vm_area_struct *vma)
 ///检查是否可以复用anon_vma
 	anon_vma = find_mergeable_anon_vma(vma);
 	allocated = NULL; 
-	if (!anon_vma) {  ///不能复用anon_vma，就新分配一个，并作初始化
+
+	///不能复用anon_vma，就新分配一个，并作初始化
+	if (!anon_vma) {  
 		anon_vma = anon_vma_alloc();
 		if (unlikely(!anon_vma))
 			goto out_enomem_free_avc;
@@ -331,7 +333,7 @@ int anon_vma_clone(struct vm_area_struct *dst, struct vm_area_struct *src)
  */
 
 /***********************************************************************
- * func:为子进程创建av数据结构，把vma绑定到子进程的av中
+ * func:为子进程创建av数据结构，并构建av链接关系
  * vma: 子进程vma
  * pvma: 父进程的vma
  ***********************************************************************/
@@ -352,7 +354,8 @@ int anon_vma_fork(struct vm_area_struct *vma, struct vm_area_struct *pvma)
 	 * First, attach the new VMA to the parent VMA's anon_vmas,
 	 * so rmap can find non-COWed pages in child processes.
 	 */
-	error = anon_vma_clone(vma, pvma);  ///把子进程的vma绑定到父进程vma的av链表中
+	 ///把子进程的vma(通过avc)绑定到父进程vma的av链表中
+	error = anon_vma_clone(vma, pvma);  
 	if (error)
 		return error;
 
@@ -1193,7 +1196,9 @@ void page_add_new_anon_rmap(struct page *page,
 	int nr = compound ? thp_nr_pages(page) : 1;
 
 	VM_BUG_ON_VMA(address < vma->vm_start || address >= vma->vm_end, vma);
-	__SetPageSwapBacked(page);  ///设置page的标志位PG_swapbacked，表示这个页面可以交换到磁盘
+	
+	///设置page的标志位PG_swapbacked，表示这个页面可以交换到磁盘
+	__SetPageSwapBacked(page);  
 	if (compound) {
 		VM_BUG_ON_PAGE(!PageTransHuge(page), page);
 		/* increment count (starts at -1) */
@@ -1208,8 +1213,11 @@ void page_add_new_anon_rmap(struct page *page,
 		/* increment count (starts at -1) */
 		atomic_set(&page->_mapcount, 0); ///设置_mapcount=0，初始值为-1
 	}
-	__mod_lruvec_page_state(page, NR_ANON_MAPPED, nr); ///增加页面锁在zone的匿名页面的计数，匿名页面计数类型为NR_ANON_MAPPED
-	__page_set_anon_rmap(page, vma, address, 1);  //设置匿名页面,page->mapping指向av
+	///增加页面锁在zone的匿名页面的计数，匿名页面计数类型为NR_ANON_MAPPED
+	__mod_lruvec_page_state(page, NR_ANON_MAPPED, nr); 
+
+	//设置匿名页面,page->mapping指向av
+	__page_set_anon_rmap(page, vma, address, 1);  
 }
 
 /**
@@ -2282,8 +2290,10 @@ static void rmap_walk_anon(struct page *page, struct rmap_walk_control *rwc,
 	pgoff_t pgoff_start, pgoff_end;
 	struct anon_vma_chain *avc;
 
+
+	///从page获取av数据结构 
 	if (locked) {
-		anon_vma = page_anon_vma(page);     ///从page获取av数据结构 
+		anon_vma = page_anon_vma(page);     
 		/* anon_vma disappear under us? */
 		VM_BUG_ON_PAGE(!anon_vma, page);
 	} else {
