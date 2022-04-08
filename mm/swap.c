@@ -399,12 +399,21 @@ static void __lru_cache_activate_page(struct page *page)
  * When a newly allocated page is not yet visible, so safe for non-atomic ops,
  * __SetPageReferenced(page) may be substituted for mark_page_accessed(page).
  */
-///若页框被访问，被调用
+/*************************************************
+ * func:标记页面，若页框被访问，被调用
+ * 有三种情况：
+ * page在不活跃链表上：
+ *      unreferenced-->inactive,referenced
+ *      referenced  -->active,unreferenced
+ * page在活跃链表上：
+ *                  -->active,referenced
+ *************************************************/
 void mark_page_accessed(struct page *page)
 {
 	page = compound_head(page);
 
-	if (!PageReferenced(page)) {  ///PG_referenced==0，置1
+	///PG_referenced==0，无论活跃或不活跃链表，都置1
+	if (!PageReferenced(page)) {  
 		SetPageReferenced(page);
 	} else if (PageUnevictable(page)) {
 		/*
@@ -412,13 +421,17 @@ void mark_page_accessed(struct page *page)
 		 * this list is never rotated or maintained, so marking an
 		 * evictable page accessed has no effect.
 		 */
-	} else if (!PageActive(page)) {  ///页面被访问，但不是活跃，将访问位清零，加入到活跃链表
+	} else if (!PageActive(page)) {  
 		/*
 		 * If the page is on the LRU, queue it for activation via
 		 * lru_pvecs.activate_page. Otherwise, assume the page is on a
 		 * pagevec, mark it active and it'll be moved to the active
 		 * LRU on the next drain.
 		 */
+		 ///页面被访问，但不是活跃，将访问位清零，加入到活跃链表
+		 ///加入到活跃链表：
+		 ///   如果page在当前在lru，先从原来lru删除，再加入也向量组，等待激活;
+		 ///   如果page在页向量组, 激活标志位，将来会加入活跃链表
 		if (PageLRU(page))
 			activate_page(page);
 		else
@@ -449,7 +462,11 @@ void lru_cache_add(struct page *page)
 
 	get_page(page);
 	local_lock(&lru_pvecs.lock);
+	///获取页向量组
 	pvec = this_cpu_ptr(&lru_pvecs.lru_add);
+
+	///将page加入页向量组，并判断是否需要刷新
+	///这里为提高性能，对page加入lru做了个批处理，一次性加入15个page
 	if (pagevec_add_and_need_flush(pvec, page))
 		__pagevec_lru_add(pvec);
 	local_unlock(&lru_pvecs.lock);
@@ -1031,7 +1048,7 @@ static void __pagevec_lru_add_fn(struct page *page, struct lruvec *lruvec)
 		if (!was_unevictable)
 			__count_vm_events(UNEVICTABLE_PGCULLED, nr_pages);
 	}
-
+	///page插入lru链表头
 	add_page_to_lru_list(page, lruvec);
 	trace_mm_lru_insertion(page);
 }
@@ -1050,6 +1067,7 @@ void __pagevec_lru_add(struct pagevec *pvec)
 		struct page *page = pvec->pages[i];
 
 		lruvec = relock_page_lruvec_irqsave(page, lruvec, &flags);
+		///page加入lru
 		__pagevec_lru_add_fn(page, lruvec);
 	}
 	if (lruvec)

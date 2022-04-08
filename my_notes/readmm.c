@@ -306,6 +306,31 @@ struct anon_vma_chain {
 ...
 };
 
+fork:
+dup_mmap()->anon_vma_fork()->
+
+do_anonymous_page
 
 
+handle_pte_fault
+
+
+try_to_unmap(page, refs)
+
+mark_page_accessed
+
+shrink_inactive_list
+
+page_check_references(struct page * page, struct scan_control * sc)
+
+	kswapd(void * p)
+
+	
+shrink_active_list
+	lru_cache_add(struct page * page)
+	lru_to_page(head)
+
+	wakeup_kswapd
+	balance_pgdat
+	kswapd_shrink_zone
 

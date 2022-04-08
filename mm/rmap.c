@@ -792,18 +792,21 @@ static bool page_referenced_one(struct page *page, struct vm_area_struct *vma,
 	};
 	int referenced = 0;
 
-	while (page_vma_mapped_walk(&pvmw)) {  ///遍历页表，找出对应PTE
+	///遍历页表，找出对应PTE
+	while (page_vma_mapped_walk(&pvmw)) {  
 		address = pvmw.address;
 
-		if (vma->vm_flags & VM_LOCKED) {  ///内存锁定，直接返回
+		///内存锁定，直接返回
+		if (vma->vm_flags & VM_LOCKED) { 
 			page_vma_mapped_walk_done(&pvmw);
 			pra->vm_flags |= VM_LOCKED;
 			return false; /* To break the loop */
 		}
 
 		if (pvmw.pte) {
+			 ///判断是否访问过，若有，referenced++，清除PTE_AF,刷新页面TLB
 			if (ptep_clear_flush_young_notify(vma, address,
-						pvmw.pte)) {      ///判断是否访问过，若有，referenced++，清除PTE_AF,刷新页面TLB
+						pvmw.pte)) {     
 				/*
 				 * Don't treat a reference through
 				 * a sequentially read mapping as such.
@@ -812,7 +815,8 @@ static bool page_referenced_one(struct page *page, struct vm_area_struct *vma,
 				 * already gone, the unmap path will have set
 				 * PG_referenced or activated the page.
 				 */
-				if (likely(!(vma->vm_flags & VM_SEQ_READ)))    ///循序读，做弱访问引用处理，适合回收
+				 ///循序读，做弱访问引用处理，适合回收
+				if (likely(!(vma->vm_flags & VM_SEQ_READ)))    
 					referenced++;
 			}
 		} else if (IS_ENABLED(CONFIG_TRANSPARENT_HUGEPAGE)) {
@@ -864,8 +868,8 @@ static bool invalid_page_referenced_vma(struct vm_area_struct *vma, void *arg)
  * Quick test_and_clear_referenced for all mappings to a page,
  * returns the number of ptes which referenced the page.
  */
- ///判断页面是否被访问过过，并返回引用的PTE个数，即引用这个page的用户进程空间虚拟页面的个数
- ///就是利用rmap系统来统计访问、引用PTE的个数
+ ///判断页面是否被访问过，并返回引用的PTE个数，即引用这个page的用户进程空间虚拟页面的个数
+ ///就是利用rmap系统来统计引用PTE的个数
 int page_referenced(struct page *page,
 		    int is_locked,
 		    struct mem_cgroup *memcg,
@@ -904,7 +908,7 @@ int page_referenced(struct page *page,
 		rwc.invalid_vma = invalid_page_referenced_vma;
 	}
 
-	rmap_walk(page, &rwc);   ///遍历映射page的所有PTE，调用rmap_one()函数
+	rmap_walk(page, &rwc);   ///遍历映射page的所有VMA，调用rmap_one()函数，判断是否有映射的pte,统计映射pte总数
 	*vm_flags = pra.vm_flags;
 
 	if (we_locked)
@@ -2308,7 +2312,8 @@ static void rmap_walk_anon(struct page *page, struct rmap_walk_control *rwc,
 ///遍历av的红黑树中的avc
 	anon_vma_interval_tree_foreach(avc, &anon_vma->rb_root,
 			pgoff_start, pgoff_end) {
-		struct vm_area_struct *vma = avc->vma;            ///从avc获得va
+		///从avc获得va
+		struct vm_area_struct *vma = avc->vma;            
 		unsigned long address = vma_address(page, vma);
 
 		VM_BUG_ON_VMA(address == -EFAULT, vma);
@@ -2316,8 +2321,8 @@ static void rmap_walk_anon(struct page *page, struct rmap_walk_control *rwc,
 
 		if (rwc->invalid_vma && rwc->invalid_vma(vma, rwc->arg))
 			continue;
-
-		if (!rwc->rmap_one(page, vma, address, rwc->arg))   ///解除PTE映射
+		///判断是都有映射
+		if (!rwc->rmap_one(page, vma, address, rwc->arg))   
 			break;
 		if (rwc->done && rwc->done(page))
 			break;
