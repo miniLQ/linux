@@ -4081,6 +4081,7 @@ restart:
 		 * pages are rotated regardless of classzone as this is
 		 * about consistent aging.
 		 */
+		///老化匿名页面的活跃链表
 		age_active_anon(pgdat, &sc);
 
 		/*

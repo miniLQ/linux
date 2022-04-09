@@ -300,9 +300,9 @@ static void __activate_page(struct page *page, struct lruvec *lruvec)
 	if (!PageActive(page) && !PageUnevictable(page)) {
 		int nr_pages = thp_nr_pages(page);
 
-		del_page_from_lru_list(page, lruvec);
+		del_page_from_lru_list(page, lruvec); ///从不活跃链表删除掉
 		SetPageActive(page);
-		add_page_to_lru_list(page, lruvec);
+		add_page_to_lru_list(page, lruvec);   ///添加到活跃链表
 		trace_mm_lru_activate(page);
 
 		__count_vm_events(PGACTIVATE, nr_pages);
