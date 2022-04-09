@@ -579,6 +579,7 @@ static void copy_huge_page(struct page *dst, struct page *src)
 /*
  * Copy the page to its new location
  */
+ ///拷贝页面的flags成员
 void migrate_page_states(struct page *newpage, struct page *page)
 {
 	int cpupid;
@@ -651,11 +652,13 @@ EXPORT_SYMBOL(migrate_page_states);
 
 void migrate_page_copy(struct page *newpage, struct page *page)
 {
+	///拷贝页面内容
 	if (PageHuge(page) || PageTransHuge(page))
 		copy_huge_page(newpage, page);
 	else
 		copy_highpage(newpage, page);
 
+	///拷贝页面的flags成员
 	migrate_page_states(newpage, page);
 }
 EXPORT_SYMBOL(migrate_page_copy);
@@ -678,11 +681,13 @@ int migrate_page(struct address_space *mapping,
 
 	BUG_ON(PageWriteback(page));	/* Writeback must be complete */
 
+	///新页面mapping指向旧页面指向的地址
 	rc = migrate_page_move_mapping(mapping, newpage, page, 0);
 
 	if (rc != MIGRATEPAGE_SUCCESS)
 		return rc;
 
+	///复制旧页面内容到新页面
 	if (mode != MIGRATE_SYNC_NO_COPY)
 		migrate_page_copy(newpage, page);
 	else
@@ -928,6 +933,7 @@ static int move_to_new_page(struct page *newpage, struct page *page,
 	mapping = page_mapping(page);
 
 	if (likely(is_lru)) {
+		///匿名页面，没分配交换缓存
 		if (!mapping)
 			rc = migrate_page(mapping, newpage, page, mode);
 		else if (mapping->a_ops->migratepage)
@@ -938,6 +944,7 @@ static int move_to_new_page(struct page *newpage, struct page *page,
 			 * migratepage callback. This is the most common path
 			 * for page migration.
 			 */
+			 ///调用驱动程序注册的migratepage函数
 			rc = mapping->a_ops->migratepage(mapping, newpage,
 							page, mode);
 		else
@@ -948,6 +955,7 @@ static int move_to_new_page(struct page *newpage, struct page *page,
 		 * In case of non-lru page, it could be released after
 		 * isolation step. In that case, we shouldn't try migration.
 		 */
+		 ///处理非LRU页面情况，执行方法由用户定义
 		VM_BUG_ON_PAGE(!PageIsolated(page), page);
 		if (!PageMovable(page)) {
 			rc = MIGRATEPAGE_SUCCESS;
@@ -998,9 +1006,13 @@ static int __unmap_and_move(struct page *page, struct page *newpage,
 	int rc = -EAGAIN;
 	int page_was_mapped = 0;
 	struct anon_vma *anon_vma = NULL;
+
+	///判断是否属于非lru页面
 	bool is_lru = !__PageMovable(page);
 
 	if (!trylock_page(page)) {
+		///获取锁失败，
+		///当前不是强制迁移force=0或迁移模式为MIGRATE_ASYNC，直接忽略该页面
 		if (!force || mode == MIGRATE_ASYNC)
 			goto out;
 
@@ -1017,12 +1029,15 @@ static int __unmap_and_move(struct page *page, struct page *newpage,
 		 * avoid the use of lock_page for direct compaction
 		 * altogether.
 		 */
+		 ///PF_MEMALLOC，表示当前进程可能处于直接内存压缩的内核路径上，通过睡眠等待页面锁不安全，直接忽略该页
 		if (current->flags & PF_MEMALLOC)
 			goto out;
 
+		///等待页锁释放
 		lock_page(page);
 	}
 
+///正在回写
 	if (PageWriteback(page)) {
 		/*
 		 * Only in the case of a full synchronous migration is it
@@ -1038,8 +1053,11 @@ static int __unmap_and_move(struct page *page, struct page *newpage,
 			rc = -EBUSY;
 			goto out_unlock;
 		}
+		///只有MIGRATE_ASYNC，且force=1，才会等待回写完成，否则直接忽略
 		if (!force)
 			goto out_unlock;
+
+		///等待页面回写完成
 		wait_on_page_writeback(page);
 	}
 
@@ -1057,6 +1075,7 @@ static int __unmap_and_move(struct page *page, struct page *newpage,
 	 * because that implies that the anon page is no longer mapped
 	 * (and cannot be remapped so long as we hold the page lock).
 	 */
+	 ///处理匿名页面可能被释放的特殊情况
 	if (PageAnon(page) && !PageKsm(page))
 		anon_vma = page_get_anon_vma(page);
 
@@ -1070,7 +1089,8 @@ static int __unmap_and_move(struct page *page, struct page *newpage,
 	 */
 	if (unlikely(!trylock_page(newpage)))
 		goto out_unlock;
-
+	
+	///处理非lru页面
 	if (unlikely(!is_lru)) {
 		rc = move_to_new_page(newpage, page, mode);
 		goto out_unlock_both;
@@ -1088,24 +1108,30 @@ static int __unmap_and_move(struct page *page, struct page *newpage,
 	 * invisible to the vm, so the page can not be migrated.  So try to
 	 * free the metadata, so the page can be freed.
 	 */
+	 ///处理传统的LRU页面
 	if (!page->mapping) {
+		///从交换分区读取到page，还没有设置RMAP，这时调用try_to_unmap()可能触发宕机
 		VM_BUG_ON_PAGE(PageAnon(page), page);
 		if (page_has_private(page)) {
 			try_to_free_buffers(page);
 			goto out_unlock_both;
 		}
 	} else if (page_mapped(page)) {
+	///_mapcount>=0，说明有用户PTE映射
 		/* Establish migration ptes */
 		VM_BUG_ON_PAGE(PageAnon(page) && !PageKsm(page) && !anon_vma,
 				page);
+		///对于有Pte映射页面,解除映射
 		try_to_unmap(page, TTU_MIGRATION|TTU_IGNORE_MLOCK);
 		page_was_mapped = 1;
 	}
 
+	///已经解除所有映射的页面，迁移到新分配的页面
 	if (!page_mapped(page))
 		rc = move_to_new_page(newpage, page, mode);
 
 	if (page_was_mapped)
+		///迁移页表
 		remove_migration_ptes(page,
 			rc == MIGRATEPAGE_SUCCESS ? newpage : page, false);
 
@@ -1166,6 +1192,7 @@ static int unmap_and_move(new_page_t get_new_page,
 		goto out;
 	}
 
+///分配一个新页面
 	newpage = get_new_page(page, private);
 	if (!newpage)
 		return -ENOMEM;
@@ -1209,7 +1236,7 @@ out:
 			list_add_tail(&page->lru, ret);
 
 		if (put_new_page)
-			put_new_page(newpage, private);
+			put_new_page(newpage, private);  ///刚分配的页面，需要调用put_new_page
 		else
 			put_page(newpage);
 	}
