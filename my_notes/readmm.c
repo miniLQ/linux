@@ -277,3 +277,60 @@ kmem_cache_node
 
 ___cache_free(struct kmem_cache * cache, void * x, unsigned long addr)
 
+
+task_struct
+
+struct mm_struct 
+
+vm_area_struct
+
+anon_vma
+
+anon_vma_chain
+
+ /**************************************************
+ * func:链接枢纽
+ *************************************************/
+struct anon_vma_chain {
+	///指向vma,可以指向父进程，也可以指向子进程
+	struct vm_area_struct *vma;  
+
+	///指向anon_vma，可以指向父/子进程
+	struct anon_vma *anon_vma;    
+
+	///把avc添加到vma的avc链表中
+	struct list_head same_vma;   /* locked by mmap_lock & page_table_lock */  
+
+	 ///把anon_vma添加到anon_vma的红黑树中
+	struct rb_node rb;			/* locked by anon_vma->rwsem */              
+...
+};
+
+fork:
+dup_mmap()->anon_vma_fork()->
+
+do_anonymous_page
+
+
+handle_pte_fault
+
+
+try_to_unmap(page, refs)
+
+mark_page_accessed
+
+shrink_inactive_list
+
+page_check_references(struct page * page, struct scan_control * sc)
+
+	kswapd(void * p)
+
+	
+shrink_active_list
+	lru_cache_add(struct page * page)
+	lru_to_page(head)
+
+	wakeup_kswapd
+	balance_pgdat
+	kswapd_shrink_zone
+

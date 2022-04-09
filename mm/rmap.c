@@ -195,7 +195,9 @@ int __anon_vma_prepare(struct vm_area_struct *vma)
 ///检查是否可以复用anon_vma
 	anon_vma = find_mergeable_anon_vma(vma);
 	allocated = NULL; 
-	if (!anon_vma) {  ///不能复用anon_vma，就新分配一个，并作初始化
+
+	///不能复用anon_vma，就新分配一个，并作初始化
+	if (!anon_vma) {  
 		anon_vma = anon_vma_alloc();
 		if (unlikely(!anon_vma))
 			goto out_enomem_free_avc;
@@ -330,7 +332,7 @@ int anon_vma_clone(struct vm_area_struct *dst, struct vm_area_struct *src)
  */
 
 /***********************************************************************
- * func:为子进程创建av数据结构，把vma绑定到子进程的av中
+ * func:为子进程创建av数据结构，并构建av链接关系
  * vma: 子进程vma
  * pvma: 父进程的vma
  ***********************************************************************/
@@ -351,7 +353,8 @@ int anon_vma_fork(struct vm_area_struct *vma, struct vm_area_struct *pvma)
 	 * First, attach the new VMA to the parent VMA's anon_vmas,
 	 * so rmap can find non-COWed pages in child processes.
 	 */
-	error = anon_vma_clone(vma, pvma);  ///把子进程的vma绑定到父进程vma的av链表中
+	 ///把子进程的vma(通过avc)绑定到父进程vma的av链表中
+	error = anon_vma_clone(vma, pvma);  
 	if (error)
 		return error;
 
@@ -791,18 +794,21 @@ static bool page_referenced_one(struct page *page, struct vm_area_struct *vma,
 	};
 	int referenced = 0;
 
-	while (page_vma_mapped_walk(&pvmw)) {  ///遍历页表，找出对应PTE
+	///遍历页表，找出对应PTE
+	while (page_vma_mapped_walk(&pvmw)) {  
 		address = pvmw.address;
 
-		if (vma->vm_flags & VM_LOCKED) {  ///内存锁定，直接返回
+		///内存锁定，直接返回
+		if (vma->vm_flags & VM_LOCKED) { 
 			page_vma_mapped_walk_done(&pvmw);
 			pra->vm_flags |= VM_LOCKED;
 			return false; /* To break the loop */
 		}
 
 		if (pvmw.pte) {
+			 ///判断是否访问过，若有，referenced++，清除PTE_AF,刷新页面TLB
 			if (ptep_clear_flush_young_notify(vma, address,
-						pvmw.pte)) {      ///判断是否访问过，若有，referenced++，清除PTE_AF,刷新页面TLB
+						pvmw.pte)) {     
 				/*
 				 * Don't treat a reference through
 				 * a sequentially read mapping as such.
@@ -811,7 +817,8 @@ static bool page_referenced_one(struct page *page, struct vm_area_struct *vma,
 				 * already gone, the unmap path will have set
 				 * PG_referenced or activated the page.
 				 */
-				if (likely(!(vma->vm_flags & VM_SEQ_READ)))    ///循序读，做弱访问引用处理，适合回收
+				 ///循序读，做弱访问引用处理，适合回收
+				if (likely(!(vma->vm_flags & VM_SEQ_READ)))    
 					referenced++;
 			}
 		} else if (IS_ENABLED(CONFIG_TRANSPARENT_HUGEPAGE)) {
@@ -863,8 +870,8 @@ static bool invalid_page_referenced_vma(struct vm_area_struct *vma, void *arg)
  * Quick test_and_clear_referenced for all mappings to a page,
  * returns the number of ptes which referenced the page.
  */
- ///判断页面是否被访问过过，并返回引用的PTE个数，即引用这个page的用户进程空间虚拟页面的个数
- ///就是利用rmap系统来统计访问、引用PTE的个数
+ ///判断页面是否被访问过，并返回引用的PTE个数，即引用这个page的用户进程空间虚拟页面的个数
+ ///就是利用rmap系统来统计引用PTE的个数
 int page_referenced(struct page *page,
 		    int is_locked,
 		    struct mem_cgroup *memcg,
@@ -903,7 +910,7 @@ int page_referenced(struct page *page,
 		rwc.invalid_vma = invalid_page_referenced_vma;
 	}
 
-	rmap_walk(page, &rwc);   ///遍历映射page的所有PTE，调用rmap_one()函数
+	rmap_walk(page, &rwc);   ///遍历映射page的所有VMA，调用rmap_one()函数，判断是否有映射的pte,统计映射pte总数
 	*vm_flags = pra.vm_flags;
 
 	if (we_locked)
@@ -1195,7 +1202,9 @@ void page_add_new_anon_rmap(struct page *page,
 	int nr = compound ? thp_nr_pages(page) : 1;
 
 	VM_BUG_ON_VMA(address < vma->vm_start || address >= vma->vm_end, vma);
-	__SetPageSwapBacked(page);  ///设置page的标志位PG_swapbacked，表示这个页面可以交换到磁盘
+	
+	///设置page的标志位PG_swapbacked，表示这个页面可以交换到磁盘
+	__SetPageSwapBacked(page);  
 	if (compound) {
 		VM_BUG_ON_PAGE(!PageTransHuge(page), page);
 		/* increment count (starts at -1) */
@@ -1210,8 +1219,11 @@ void page_add_new_anon_rmap(struct page *page,
 		/* increment count (starts at -1) */
 		atomic_set(&page->_mapcount, 0); ///设置_mapcount=0，初始值为-1
 	}
-	__mod_lruvec_page_state(page, NR_ANON_MAPPED, nr); ///增加页面锁在zone的匿名页面的计数，匿名页面计数类型为NR_ANON_MAPPED
-	__page_set_anon_rmap(page, vma, address, 1);  //设置匿名页面,page->mapping指向av
+	///增加页面锁在zone的匿名页面的计数，匿名页面计数类型为NR_ANON_MAPPED
+	__mod_lruvec_page_state(page, NR_ANON_MAPPED, nr); 
+
+	//设置匿名页面,page->mapping指向av
+	__page_set_anon_rmap(page, vma, address, 1);  
 }
 
 /**
@@ -1868,8 +1880,10 @@ static void rmap_walk_anon(struct page *page, struct rmap_walk_control *rwc,
 	pgoff_t pgoff_start, pgoff_end;
 	struct anon_vma_chain *avc;
 
+
+	///从page获取av数据结构 
 	if (locked) {
-		anon_vma = page_anon_vma(page);     ///从page获取av数据结构 
+		anon_vma = page_anon_vma(page);     
 		/* anon_vma disappear under us? */
 		VM_BUG_ON_PAGE(!anon_vma, page);
 	} else {
@@ -1884,15 +1898,16 @@ static void rmap_walk_anon(struct page *page, struct rmap_walk_control *rwc,
 ///遍历av的红黑树中的avc
 	anon_vma_interval_tree_foreach(avc, &anon_vma->rb_root,
 			pgoff_start, pgoff_end) {
-		struct vm_area_struct *vma = avc->vma;            ///从avc获得va
+		///从avc获得va
+		struct vm_area_struct *vma = avc->vma;            
 		unsigned long address = vma_address(page, vma);
 
 		cond_resched();
 
 		if (rwc->invalid_vma && rwc->invalid_vma(vma, rwc->arg))
 			continue;
-
-		if (!rwc->rmap_one(page, vma, address, rwc->arg))   ///解除PTE映射
+		///判断是都有映射
+		if (!rwc->rmap_one(page, vma, address, rwc->arg))   
 			break;
 		if (rwc->done && rwc->done(page))
 			break;
