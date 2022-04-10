@@ -870,6 +870,7 @@ void set_task_stack_end_magic(struct task_struct *tsk)
 {
 	unsigned long *stackend;
 
+	///在栈顶设置幻数，用于检测溢出
 	stackend = end_of_stack(tsk);
 	*stackend = STACK_END_MAGIC;	/* for overflow detection */
 }
@@ -883,10 +884,12 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 
 	if (node == NUMA_NO_NODE)
 		node = tsk_fork_get_node(orig);
+	///为新进程分配进程描述符tsk
 	tsk = alloc_task_struct_node(node);
 	if (!tsk)
 		return NULL;
 
+	///为新进程分配内核栈空间
 	stack = alloc_thread_stack_node(tsk, node);
 	if (!stack)
 		goto free_tsk;
@@ -903,7 +906,7 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 	 * sure they're properly initialized before using any stack-related
 	 * functions again.
 	 */
-	tsk->stack = stack;
+	tsk->stack = stack;///指向新栈
 #ifdef CONFIG_VMAP_STACK
 	tsk->stack_vm_area = stack_vm_area;
 #endif
@@ -1947,6 +1950,7 @@ static __latent_entropy struct task_struct *copy_process(
 	 * Don't allow sharing the root directory with processes in a different
 	 * namespace
 	 */
+	 ///子进程要创建新的User命名空间，用于管理UserID和GroupID，隔离UID
 	if ((clone_flags & (CLONE_NEWNS|CLONE_FS)) == (CLONE_NEWNS|CLONE_FS))
 		return ERR_PTR(-EINVAL);
 
@@ -2596,7 +2600,8 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	 */
 	trace_sched_process_fork(current, p);
 
-	pid = get_task_pid(p, PIDTYPE_PID);
+	///获取子进程pid
+	pid = get_task_pid(p, PIDTYPE_PID); 
 	nr = pid_vnr(pid);
 
 	if (clone_flags & CLONE_PARENT_SETTID)
@@ -2604,16 +2609,18 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 
 	if (clone_flags & CLONE_VFORK) {
 		p->vfork_done = &vfork;
-		init_completion(&vfork);
+		init_completion(&vfork);   ///初始化vfork的完成量
 		get_task_struct(p);
 	}
 
-	wake_up_new_task(p);
+	///唤醒新进程，即把新进程加入就绪队列，接受调度
+	wake_up_new_task(p);  
 
 	/* forking complete and child started to run, tell ptracer */
 	if (unlikely(trace))
 		ptrace_event_pid(trace, pid);
 
+	///vfork，等待子进程调用exec()/exit()
 	if (clone_flags & CLONE_VFORK) {
 		if (!wait_for_vfork_done(p, &vfork))
 			ptrace_event_pid(PTRACE_EVENT_VFORK_DONE, pid);

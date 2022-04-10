@@ -491,22 +491,11 @@ tsk	.req	x28		// current thread_info
 
 	.align	11
 SYM_CODE_START(vectors)
-<<<<<<< HEAD
+	///linux异常向量入口，这里是同步异常，kernel_ventry宏展开为el1_sync
 	kernel_ventry	1, t, 64, sync		// Synchronous EL1t
 	kernel_ventry	1, t, 64, irq		// IRQ EL1t
 	kernel_ventry	1, t, 64, fiq		// FIQ EL1h
 	kernel_ventry	1, t, 64, error		// Error EL1t
-=======
-	kernel_ventry	1, sync_invalid			// Synchronous EL1t
-	kernel_ventry	1, irq_invalid			// IRQ EL1t
-	kernel_ventry	1, fiq_invalid			// FIQ EL1t
-	kernel_ventry	1, error_invalid		// Error EL1t
-
-	kernel_ventry	1, sync				// Synchronous EL1h ///linux异常向量入口，这里是同步异常，kernel_ventry宏展开为el1_sync
-	kernel_ventry	1, irq				// IRQ EL1h
-	kernel_ventry	1, fiq				// FIQ EL1h
-	kernel_ventry	1, error			// Error EL1h
->>>>>>> 0826f49974a2 (补充异常处理部分解析)
 
 	///linux异常向量入口，这里是同步异常，kernel_ventry宏展开为el1_sync
 	kernel_ventry	1, h, 64, sync		// Synchronous EL1h
@@ -751,7 +740,7 @@ SYM_FUNC_START(cpu_switch_to)
 	ldp	x29, x9, [x8], #16
 	ldr	lr, [x8]
 	mov	sp, x9
-	msr	sp_el0, x1
+	msr	sp_el0, x1  ///当前进程地址放在sp_el0
 	ptrauth_keys_install_kernel x1, x8, x9, x10
 	scs_save x0
 	scs_load x1
@@ -762,15 +751,18 @@ NOKPROBE(cpu_switch_to)
 /*
  * This is how we return from a fork.
  */
+///fork一个子进程，被调度后，从这里开始执行
 SYM_CODE_START(ret_from_fork)
 	bl	schedule_tail
+	///对于内核线程，x19指向内核线程的回调函数
 	cbz	x19, 1f				// not a kernel thread
 	mov	x0, x20
 	blr	x19
 1:	get_current_task tsk
 	mov	x0, sp
 	bl	asm_exit_to_user_mode
-	b	ret_to_user
+	b	ret_to_user ///用户子进程的返回
+
 SYM_CODE_END(ret_from_fork)
 NOKPROBE(ret_from_fork)
 
