@@ -181,6 +181,7 @@ void __delete_from_swap_cache(struct page *page,
  * Allocate swap space for the page and add the page to the
  * swap cache.  Caller needs to hold the page lock. 
  */
+ //为页面分配交换分区
 int add_to_swap(struct page *page)
 {
 	swp_entry_t entry;
@@ -222,6 +223,7 @@ int add_to_swap(struct page *page)
 	 * is swap in later. Always setting the dirty bit for the page solves
 	 * the problem.
 	 */
+	//设置页面脏
 	set_page_dirty(page);
 
 	return 1;

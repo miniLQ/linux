@@ -1410,7 +1410,8 @@ retry:
 
 		cond_resched();
 
-		page = lru_to_page(page_list);
+		///从lru末尾获取页面
+		page = lru_to_page(page_list); 
 		list_del(&page->lru);
 
 		if (!trylock_page(page))
@@ -1585,6 +1586,7 @@ retry:
 								    page_list))
 						goto activate_locked;
 				}
+				///第一次扫描，将不活跃链表尾部匿名页放入交换分区
 				if (!add_to_swap(page)) {
 					if (!PageTransHuge(page))
 						goto activate_locked_split;
@@ -1633,6 +1635,7 @@ retry:
 			if (unlikely(PageTransHuge(page)))
 				flags |= TTU_SPLIT_HUGE_PMD;
 
+			///通过RMAP去寻找所有索引映射的VMA和PTE，并解除映射,5.15?
 			try_to_unmap(page, flags);
 			if (page_mapped(page)) {
 				stat->nr_unmap_fail += nr_pages;
@@ -1681,6 +1684,8 @@ retry:
 			 * starts and then write it out here.
 			 */
 			try_to_unmap_flush_dirty();
+
+			///pageout,将页面写回swap分区
 			switch (pageout(page, mapping)) {
 			case PAGE_KEEP:
 				goto keep_locked;
@@ -2254,6 +2259,7 @@ static int current_may_throttle(void)
  * shrink_inactive_list() is a helper for shrink_node().  It returns the number
  * of reclaimed pages
  */
+ ///扫描不活跃链表
 static unsigned long
 shrink_inactive_list(unsigned long nr_to_scan, struct lruvec *lruvec,
 		     struct scan_control *sc, enum lru_list lru)
@@ -2362,6 +2368,7 @@ shrink_inactive_list(unsigned long nr_to_scan, struct lruvec *lruvec,
  * The downside is that we have to touch page->_refcount against each page.
  * But we had to alter page->flags anyway.
  */
+//把匿名页，从活跃链表尾部移到不活跃链表头部
 static void shrink_active_list(unsigned long nr_to_scan,
 			       struct lruvec *lruvec,
 			       struct scan_control *sc,
