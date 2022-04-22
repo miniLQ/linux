@@ -518,6 +518,38 @@ DEFINE_EVENT(sched_stat_runtime, sched_stat_runtime,
 	     TP_PROTO(struct task_struct *tsk, u64 runtime, u64 vruntime),
 	     TP_ARGS(tsk, runtime, vruntime));
 
+
+/*
+* Tracepoint for accounting runtime (time the task is executing
+* on a CPU).
+*/
+DECLARE_EVENT_CLASS(sched_stat_my_runtime,
+
+ TP_PROTO(struct task_struct *tsk, u64 vruntime),
+
+ TP_ARGS(tsk, vruntime),
+
+ TP_STRUCT__entry(
+	 __array( char,  comm,	 TASK_COMM_LEN	 )
+	 __field( pid_t, pid		 )
+	 __field( u64,	 vruntime			 )
+ ),
+
+ TP_fast_assign(
+	 memcpy(__entry->comm, tsk->comm, TASK_COMM_LEN);
+	 __entry->pid		 = tsk->pid;
+	 __entry->vruntime	 = vruntime;
+ ),
+
+ TP_printk("comm=%s pid=%d  minvruntime=%Lu [ns]",
+		 __entry->comm, __entry->pid,
+		 (unsigned long long)__entry->vruntime)
+);
+
+DEFINE_EVENT(sched_stat_my_runtime, sched_stat_my_runtime,
+	  TP_PROTO(struct task_struct *tsk, u64 vruntime),
+	  TP_ARGS(tsk, vruntime));
+
 /*
  * Tracepoint for showing priority inheritance modifying a tasks
  * priority.

@@ -3117,9 +3117,10 @@ static void shrink_node_memcgs(pg_data_t *pgdat, struct scan_control *sc)
 		reclaimed = sc->nr_reclaimed;
 		scanned = sc->nr_scanned;
 
-		///扫描lru链表
+		///扫描回收lru链表
 		shrink_lruvec(lruvec, sc);
 
+		///扫描回收slab链表
 		shrink_slab(sc->gfp_mask, pgdat->node_id, memcg,
 			    sc->priority);
 
