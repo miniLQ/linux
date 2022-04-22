@@ -333,4 +333,31 @@ shrink_active_list
 	wakeup_kswapd
 	balance_pgdat
 	kswapd_shrink_zone
+	kswapd()->balance_pgdat()->kswapd_shrink_node()->shrink_node()->shrink_node_memcgs()
+///扫描内存节点中所有可回收的页面
+static void shrink_node(pg_data_t *pgdat, struct scan_control *sc)
+	static void shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)
+
+	
+	tick_periodic
+disable_irq
+
+
+task_struct
+	sched_class
+	fair_sched_class
+static void update_curr(struct cfs_rq *cfs_rq)
+{
+	...
+	update_min_vruntime(cfs_rq);
+
+	if (entity_is_task(curr)) {
+		struct task_struct *curtask = task_of(curr);
+
+		trace_sched_stat_runtime(curtask, delta_exec, curr->vruntime);
+	
+	}
+
+	...
+}
 
