@@ -333,4 +333,7 @@ shrink_active_list
 	wakeup_kswapd
 	balance_pgdat
 	kswapd_shrink_zone
+	shrink_active_list(unsigned long nr_to_scan, struct lruvec * lruvec, struct scan_control * sc, enum lru_list lru)
+	shrink_inactive_list(unsigned long nr_to_scan, struct lruvec * lruvec, struct scan_control * sc, enum lru_list lru)
 
+thread_info
