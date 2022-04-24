@@ -696,7 +696,7 @@ noinline void __ref rest_init(void)
 	 * the init task will end up wanting to create kthreads, which, if
 	 * we schedule it before we create kthreadd, will OOPS.
 	 */
-	 ///创建内核线程init
+	 ///创建内核线程init，1号进程，后面会调用busybox的init，根据启动脚本创建更多用户进程；
 	pid = kernel_thread(kernel_init, NULL, CLONE_FS);
 	/*
 	 * Pin init on the boot CPU. Task migration is not properly working
@@ -999,8 +999,7 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	 * timer interrupt). Full topology setup happens at smp_init()
 	 * time - but meanwhile we still have a functioning scheduler.
 	 */
-	sched_init();
-
+	sched_init();  ///初始化进程相关
 	if (WARN(!irqs_disabled(),
 		 "Interrupts were enabled *very* early, fixing it\n"))
 		local_irq_disable();
@@ -1435,7 +1434,7 @@ static int run_init_process(const char *init_filename)
 	pr_debug("  with environment:\n");
 	for (p = envp_init; *p; p++)
 		pr_debug("    %s\n", *p);
-	return kernel_execve(init_filename, argv_init, envp_init);
+	return kernel_execve(init_filename, argv_init, envp_init);   ///执行新的程序
 }
 
 static int try_to_run_init_process(const char *init_filename)
@@ -1529,7 +1528,9 @@ static int __ref kernel_init(void *unused)
 	do_sysctl_args();
 
 	if (ramdisk_execute_command) {
-		ret = run_init_process(ramdisk_execute_command);
+		///启动参数传入"rdinit=/linuxrc"
+		///在busybox解析，
+		ret = run_init_process(ramdisk_execute_command);  ///尝试执行指定init程序
 		if (!ret)
 			return 0;
 		pr_err("Failed to execute %s (error %d)\n",
@@ -1606,8 +1607,8 @@ static noinline void __init kernel_init_freeable(void)
 	do_pre_smp_initcalls();
 	lockup_detector_init();
 
-	smp_init();
-	sched_init_smp();
+	smp_init();        ///初始化smp机制，平台相关
+	sched_init_smp();  ///初始化smp调度
 
 	padata_init();
 	page_alloc_init_late();
@@ -1625,6 +1626,7 @@ static noinline void __init kernel_init_freeable(void)
 	 * check if there is an early userspace init.  If yes, let it do all
 	 * the work
 	 */
+	 ///check是否有用户空间init程序可以执行
 	if (init_eaccess(ramdisk_execute_command) != 0) {
 		ramdisk_execute_command = NULL;
 		prepare_namespace();

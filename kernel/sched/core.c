@@ -4336,6 +4336,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	 * nobody will actually run it, and a signal or other external
 	 * event cannot wake it up and insert it on the runqueue either.
 	 */
+	///保证进程不会执行，不响应外部信号，也不会加入运行队列
 	p->__state = TASK_NEW;
 
 	/*
@@ -4390,7 +4391,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	 */
 	__set_task_cpu(p, smp_processor_id());
 	if (p->sched_class->task_fork)
-		p->sched_class->task_fork(p);
+		p->sched_class->task_fork(p);  ///完成初始化
 	raw_spin_unlock_irqrestore(&p->pi_lock, flags);
 
 #ifdef CONFIG_SCHED_INFO
@@ -4400,7 +4401,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 #if defined(CONFIG_SMP)
 	p->on_cpu = 0;
 #endif
-	init_task_preempt_count(p);
+	init_task_preempt_count(p);///preempt_count计数
 #ifdef CONFIG_SMP
 	plist_node_init(&p->pushable_tasks, MAX_PRIO);
 	RB_CLEAR_NODE(&p->pushable_dl_tasks);

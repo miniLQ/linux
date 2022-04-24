@@ -604,7 +604,7 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 		tmp->vm_prev = prev;
 		prev = tmp;
 
-		__vma_link_rb(mm, tmp, rb_link, rb_parent);   ///tmp添加到子进程的红黑树中
+		__vma_link_rb(mm, tmp, rb_link, rb_parent);   ///刚创建的tmp添加到子进程的红黑树中
 		rb_link = &tmp->vm_rb.rb_right;
 		rb_parent = &tmp->vm_rb;
 
@@ -889,7 +889,7 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 	if (!tsk)
 		return NULL;
 
-	///为新进程分配内核栈空间
+	///为新进程分配内核栈空间，ARM64是16KB
 	stack = alloc_thread_stack_node(tsk, node);
 	if (!stack)
 		goto free_tsk;
@@ -934,7 +934,7 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 	setup_thread_stack(tsk, orig);
 	clear_user_return_notifier(tsk);
 	clear_tsk_need_resched(tsk);
-	set_task_stack_end_magic(tsk);
+	set_task_stack_end_magic(tsk);  ///内核栈最高地址处设置幻数，用于溢出检测
 	clear_syscall_work_syscall_user_dispatch(tsk);
 
 #ifdef CONFIG_STACKPROTECTOR
@@ -1498,16 +1498,17 @@ static int copy_mm(unsigned long clone_flags, struct task_struct *tsk)
 	 * We need to steal a active VM for that..
 	 */
 	oldmm = current->mm;
-	if (!oldmm)
+	if (!oldmm)   ///如果为空，说明是内核线程，不需要拷贝，直接退出
 		return 0;
 
 	/* initialize the new vmacache entries */
 	vmacache_flush(tsk);
 
-	if (clone_flags & CLONE_VM) {
+	if (clone_flags & CLONE_VM) { ///若是vfork设置CLONE_VM，直接修改填指针即可
 		mmget(oldmm);
 		mm = oldmm;
 	} else {
+		///实现mm的拷贝
 		mm = dup_mm(tsk, current->mm);
 		if (!mm)
 			return -ENOMEM;
@@ -2030,7 +2031,7 @@ static __latent_entropy struct task_struct *copy_process(
 		goto fork_out;
 
 	retval = -ENOMEM;
-	p = dup_task_struct(current, node);
+	p = dup_task_struct(current, node);  ///分配一个task_struct实例
 	if (!p)
 		goto fork_out;
 	if (args->io_thread) {
@@ -2168,7 +2169,7 @@ static __latent_entropy struct task_struct *copy_process(
 #endif
 
 	/* Perform scheduler related setup. Assign this task to a CPU. */
-	retval = sched_fork(clone_flags, p);
+	retval = sched_fork(clone_flags, p);  ///进程调度实体的初始化
 	if (retval)
 		goto bad_fork_cleanup_policy;
 
@@ -2198,7 +2199,7 @@ static __latent_entropy struct task_struct *copy_process(
 	retval = copy_signal(clone_flags, p);
 	if (retval)
 		goto bad_fork_cleanup_sighand;
-	retval = copy_mm(clone_flags, p);
+	retval = copy_mm(clone_flags, p);   ///拷贝进程地址空间
 	if (retval)
 		goto bad_fork_cleanup_signal;
 	retval = copy_namespaces(clone_flags, p);
@@ -2207,6 +2208,7 @@ static __latent_entropy struct task_struct *copy_process(
 	retval = copy_io(clone_flags, p);
 	if (retval)
 		goto bad_fork_cleanup_namespaces;
+	///拷贝父进程栈框
 	retval = copy_thread(clone_flags, args->stack, args->stack_size, p, args->tls);
 	if (retval)
 		goto bad_fork_cleanup_io;
