@@ -11403,6 +11403,7 @@ int alloc_fair_sched_group(struct task_group *tg, struct task_group *parent)
 
 	init_cfs_bandwidth(tg_cfs_bandwidth(tg));///初始化带宽相关信息
 
+///遍历每个CPU，为每个CPU分配一个cfs_rq调度队列和se调度实体，
 	for_each_possible_cpu(i) {
 		cfs_rq = kzalloc_node(sizeof(struct cfs_rq),
 				      GFP_KERNEL, cpu_to_node(i));

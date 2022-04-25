@@ -4373,6 +4373,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 		p->sched_class = &rt_sched_class;
 	else
 		p->sched_class = &fair_sched_class;
+	
 	///初始化entity成员
 	init_entity_runnable_average(&p->se);
 
@@ -5566,7 +5567,7 @@ __pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 	 * opportunity to pull in more work from other CPUs.
 	 */
 	if (likely(prev->sched_class <= &fair_sched_class &&
-		   rq->nr_running == rq->cfs.h_nr_running)) { ///一个优化，如果继续队列只有普通进程，不需要遍历所有调度器类
+		   rq->nr_running == rq->cfs.h_nr_running)) { ///一个优化，如果就绪队列只有普通进程，不需要遍历所有调度器类
 
 		p = pick_next_task_fair(rq, prev, rf);
 		if (unlikely(p == RETRY_TASK))
@@ -5584,7 +5585,7 @@ __pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 restart:
 	put_prev_task_balance(rq, prev, rf);
 
-	for_each_class(class) {///遍历所哟调度器类，找出最合适进程
+	for_each_class(class) {///遍历所有调度器类，找出最合适进程
 		p = class->pick_next_task(rq);
 		if (p)
 			return p;
@@ -6700,6 +6701,7 @@ asmlinkage __visible void __sched preempt_schedule_irq(void)
 	do {
 		preempt_disable();
 		local_irq_enable();
+		///中断返回前，检查是否需要调度，这里是抢占调度，传入true
 		__schedule(SM_PREEMPT);
 		local_irq_disable();
 		sched_preempt_enable_no_resched();
