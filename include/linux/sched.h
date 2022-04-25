@@ -476,7 +476,7 @@ struct sched_entity {
 
 	u64				exec_start;
 	u64				sum_exec_runtime;
-	u64				vruntime;
+	u64				vruntime;               ///虚拟运行时间，加权后的时间，单位ns，与定时器节拍无关
 	u64				prev_sum_exec_runtime;
 
 	u64				nr_migrations;
@@ -717,7 +717,7 @@ struct task_struct {
 	unsigned int			rt_priority;
 
 	const struct sched_class	*sched_class;
-	struct sched_entity		se;
+	struct sched_entity		se;  ///进程调度实体
 	struct sched_rt_entity		rt;
 #ifdef CONFIG_CGROUP_SCHED
 	struct task_group		*sched_task_group;
