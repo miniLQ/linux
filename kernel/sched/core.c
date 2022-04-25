@@ -4330,13 +4330,13 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 {
 	unsigned long flags;
 
-	__sched_fork(clone_flags, p);
+	__sched_fork(clone_flags, p);///调度实体参数置零，与父进程分道扬镳
 	/*
 	 * We mark the process as NEW here. This guarantees that
 	 * nobody will actually run it, and a signal or other external
 	 * event cannot wake it up and insert it on the runqueue either.
 	 */
-	///保证进程不会执行，不响应外部信号，也不会加入运行队列
+	///保证进程不会执行，不响应外部信号，还没加入调度器
 	p->__state = TASK_NEW;
 
 	/*
@@ -4373,7 +4373,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 		p->sched_class = &rt_sched_class;
 	else
 		p->sched_class = &fair_sched_class;
-
+	///初始化entity成员
 	init_entity_runnable_average(&p->se);
 
 	/*
@@ -4391,7 +4391,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	 */
 	__set_task_cpu(p, smp_processor_id());
 	if (p->sched_class->task_fork)
-		p->sched_class->task_fork(p);  ///完成初始化
+		p->sched_class->task_fork(p);  ///调用调度类方法，进一步完成初始化
 	raw_spin_unlock_irqrestore(&p->pi_lock, flags);
 
 #ifdef CONFIG_SCHED_INFO
@@ -4461,7 +4461,7 @@ void wake_up_new_task(struct task_struct *p)
 	update_rq_clock(rq);
 	post_init_entity_util_avg(p);
 
-	activate_task(rq, p, ENQUEUE_NOCLOCK);
+	activate_task(rq, p, ENQUEUE_NOCLOCK);///子进程添加到调度器
 	trace_sched_wakeup_new(p);
 	check_preempt_curr(rq, p, WF_FORK);
 #ifdef CONFIG_SMP
@@ -4906,12 +4906,13 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	 * kernel ->   user   switch + mmdrop() active
 	 *   user ->   user   switch
 	 */
+	 ///内核线程
 	if (!next->mm) {                                // to kernel
 		enter_lazy_tlb(prev->active_mm, next);
 
 		next->active_mm = prev->active_mm;
 		if (prev->mm)                           // from user
-			mmgrab(prev->active_mm);
+			mmgrab(prev->active_mm); ///增加mm_count计数
 		else
 			prev->active_mm = NULL;
 	} else {                                        // to user
@@ -4924,6 +4925,7 @@ context_switch(struct rq *rq, struct task_struct *prev,
 		 * case 'prev->active_mm == next->mm' through
 		 * finish_task_switch()'s mmdrop().
 		 */
+		 ///切换进程地址空间，设置新进程页表到硬件中
 		switch_mm_irqs_off(prev->active_mm, next->mm, next);
 
 		if (!prev->mm) {                        // from kernel
@@ -4938,10 +4940,15 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	prepare_lock_switch(rq, next, rf);
 
 	/* Here we just switch the register state and the stack. */
+	///切换到next进程的内核态栈和硬件上下文
 	switch_to(prev, next, prev);
 	barrier();
 
-	return finish_task_switch(prev);
+	///进程从A切换B
+	///这的prev保留的task_stuct,在进程B执行时，是A的task_stuct,
+	///在A下次重新被调度到时，prev保存的换入A前进程的task_stuct
+
+	return finish_task_switch(prev);  ///唤醒时，清理前一个进程的收尾工作
 }
 
 /*
@@ -5206,9 +5213,11 @@ void scheduler_tick(void)
 
 	rq_lock(rq, &rf);
 
-	update_rq_clock(rq);
+	update_rq_clock(rq);    ///更新当前CPU就绪队列rq中的时钟计数clock和clock_task
 	thermal_pressure = arch_scale_thermal_pressure(cpu_of(rq));
 	update_thermal_load_avg(rq_clock_thermal(rq), rq, thermal_pressure);
+
+	///调度类的方法，处理时钟节拍到来时调度器相关事情
 	curr->sched_class->task_tick(rq, curr, 0);
 	if (sched_feat(LATENCY_WARN))
 		resched_latency = cpu_resched_latency(rq);
@@ -5223,7 +5232,7 @@ void scheduler_tick(void)
 
 #ifdef CONFIG_SMP
 	rq->idle_balance = idle_cpu(cpu);
-	trigger_load_balance(rq);
+	trigger_load_balance(rq); ///触发SMP负载均衡机制
 #endif
 }
 
@@ -5557,7 +5566,7 @@ __pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 	 * opportunity to pull in more work from other CPUs.
 	 */
 	if (likely(prev->sched_class <= &fair_sched_class &&
-		   rq->nr_running == rq->cfs.h_nr_running)) {
+		   rq->nr_running == rq->cfs.h_nr_running)) { ///一个优化，如果继续队列只有普通进程，不需要遍历所有调度器类
 
 		p = pick_next_task_fair(rq, prev, rf);
 		if (unlikely(p == RETRY_TASK))
@@ -5575,7 +5584,7 @@ __pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 restart:
 	put_prev_task_balance(rq, prev, rf);
 
-	for_each_class(class) {
+	for_each_class(class) {///遍历所哟调度器类，找出最合适进程
 		p = class->pick_next_task(rq);
 		if (p)
 			return p;
@@ -6172,10 +6181,11 @@ static void __sched notrace __schedule(unsigned int sched_mode)
 	struct rq *rq;
 	int cpu;
 
-	cpu = smp_processor_id();
-	rq = cpu_rq(cpu);
+	cpu = smp_processor_id();  ///获取当前CPU
+	rq = cpu_rq(cpu);          ///获取当前CPU的rq
 	prev = rq->curr;
 
+	///判断是否是atomic上下文，若是则为bug
 	schedule_debug(prev, !!sched_mode);
 
 	if (sched_feat(HRTICK) || sched_feat(HRTICK_DL))
@@ -6216,6 +6226,7 @@ static void __sched notrace __schedule(unsigned int sched_mode)
 	 *  - ptrace_{,un}freeze_traced() can change ->state underneath us.
 	 */
 	prev_state = READ_ONCE(prev->__state);
+///判断为主动让出CPU
 	if (!(sched_mode & SM_MASK_PREEMPT) && prev_state) {
 		if (signal_pending_state(prev_state, prev)) {
 			WRITE_ONCE(prev->__state, TASK_RUNNING);
@@ -6239,6 +6250,7 @@ static void __sched notrace __schedule(unsigned int sched_mode)
 			 *
 			 * After this, schedule() must not care about p->state any more.
 			 */
+			 ///主动调度，移出就绪队列
 			deactivate_task(rq, prev, DEQUEUE_SLEEP | DEQUEUE_NOCLOCK);
 
 			if (prev->in_iowait) {
@@ -6249,8 +6261,9 @@ static void __sched notrace __schedule(unsigned int sched_mode)
 		switch_count = &prev->nvcsw;
 	}
 
-	next = pick_next_task(rq, prev, &rf);
-	clear_tsk_need_resched(prev);
+	///preempt发生抢占调度，直接获取进程
+	next = pick_next_task(rq, prev, &rf); ///从就绪队列获取合适进程
+	clear_tsk_need_resched(prev);         ///清除调度标记
 	clear_preempt_need_resched();
 #ifdef CONFIG_SCHED_DEBUG
 	rq->last_seen_need_resched_ns = 0;
@@ -6285,7 +6298,7 @@ static void __sched notrace __schedule(unsigned int sched_mode)
 		trace_sched_switch(sched_mode & SM_MASK_PREEMPT, prev, next);
 
 		/* Also unlocks the rq: */
-		rq = context_switch(rq, prev, next, &rf);
+		rq = context_switch(rq, prev, next, &rf);///进程切换
 	} else {
 		rq->clock_update_flags &= ~(RQCF_ACT_SKIP|RQCF_REQ_SKIP);
 
@@ -6363,8 +6376,10 @@ asmlinkage __visible void __sched schedule(void)
 
 	sched_submit_work(tsk);
 	do {
+///关闭内核抢占
 		preempt_disable();
 		__schedule(SM_NONE);
+///打开内核抢占
 		sched_preempt_enable_no_resched();
 	} while (need_resched());
 	sched_update_worker(tsk);

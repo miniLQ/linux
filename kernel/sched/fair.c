@@ -536,6 +536,7 @@ static inline bool entity_before(struct sched_entity *a,
 #define __node_2_se(node) \
 	rb_entry((node), struct sched_entity, run_node)
 
+///更新最小虚拟时间
 static void update_min_vruntime(struct cfs_rq *cfs_rq)
 {
 	struct sched_entity *curr = cfs_rq->curr;
@@ -641,6 +642,7 @@ int sched_update_scaling(void)
 /*
  * delta /= w
  */
+ ///计算虚拟时间
 static inline u64 calc_delta_fair(u64 delta, struct sched_entity *se)
 {
 	if (unlikely(se->load.weight != NICE_0_LOAD))
@@ -679,7 +681,7 @@ static u64 sched_slice(struct cfs_rq *cfs_rq, struct sched_entity *se)
 	if (sched_feat(ALT_PERIOD))
 		nr_running = rq_of(cfs_rq)->cfs.h_nr_running;
 
-	slice = __sched_period(nr_running + !se->on_rq);
+	slice = __sched_period(nr_running + !se->on_rq);///计算调度周期
 
 	for_each_sched_entity(se) {
 		struct load_weight *load;
@@ -831,7 +833,7 @@ static void update_curr(struct cfs_rq *cfs_rq)
 	if (unlikely(!curr))
 		return;
 
-	delta_exec = now - curr->exec_start;
+	delta_exec = now - curr->exec_start;  ///上次调用以来的时间差
 	if (unlikely((s64)delta_exec <= 0))
 		return;
 
@@ -843,7 +845,7 @@ static void update_curr(struct cfs_rq *cfs_rq)
 	curr->sum_exec_runtime += delta_exec;
 	schedstat_add(cfs_rq->exec_clock, delta_exec);
 
-	curr->vruntime += calc_delta_fair(delta_exec, curr);
+	curr->vruntime += calc_delta_fair(delta_exec, curr);  ///计算虚拟时间
 	update_min_vruntime(cfs_rq);
 
 	if (entity_is_task(curr)) {
@@ -4191,6 +4193,7 @@ static void check_spread(struct cfs_rq *cfs_rq, struct sched_entity *se)
 #endif
 }
 
+///对虚拟时间进行惩罚
 static void
 place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
 {
@@ -4309,20 +4312,20 @@ enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 	 *     its group cfs_rq
 	 *   - Add its new weight to cfs_rq->load.weight
 	 */
-	update_load_avg(cfs_rq, se, UPDATE_TG | DO_ATTACH);
+	update_load_avg(cfs_rq, se, UPDATE_TG | DO_ATTACH); ///计算新进程负载，并更新整个CFS就绪队列负载
 	se_update_runnable(se);
 	update_cfs_group(se);
 	account_entity_enqueue(cfs_rq, se);
 
-	if (flags & ENQUEUE_WAKEUP)
+	if (flags & ENQUEUE_WAKEUP)  ///对刚睡醒进程补偿
 		place_entity(cfs_rq, se, 0);
 
 	check_schedstat_required();
 	update_stats_enqueue(cfs_rq, se, flags);
 	check_spread(cfs_rq, se);
 	if (!curr)
-		__enqueue_entity(cfs_rq, se);
-	se->on_rq = 1;
+		__enqueue_entity(cfs_rq, se); ///添加到CFS就绪队列红黑树中
+	se->on_rq = 1; ///on_rq==1,表示已经在红黑树
 
 	/*
 	 * When bandwidth control is enabled, cfs might have been removed
@@ -4445,10 +4448,12 @@ check_preempt_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 	struct sched_entity *se;
 	s64 delta;
 
-	ideal_runtime = sched_slice(cfs_rq, curr);
-	delta_exec = curr->sum_exec_runtime - curr->prev_sum_exec_runtime;
+	ideal_runtime = sched_slice(cfs_rq, curr);///理论运行时间
+	delta_exec = curr->sum_exec_runtime - curr->prev_sum_exec_runtime; ///实际运行时间
+
+	///实际运行时间>理论运行时间，时间片用完，需要调度
 	if (delta_exec > ideal_runtime) {
-		resched_curr(rq_of(cfs_rq));
+		resched_curr(rq_of(cfs_rq)); ///设置调度标记TIF_NEED_RESCHED
 		/*
 		 * The current task ran long enough, ensure it doesn't get
 		 * re-elected due to buddy favours.
@@ -4462,10 +4467,12 @@ check_preempt_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 	 * narrow margin doesn't have to wait for a full slice.
 	 * This also mitigates buddy induced latencies under load.
 	 */
+	 ///实际运行小于sysctl_sched_min_granularity默认0.75ms，不调度
 	if (delta_exec < sysctl_sched_min_granularity)
 		return;
 
 	se = __pick_first_entity(cfs_rq);
+	///虚拟时间和红黑树最左树时间比较
 	delta = curr->vruntime - se->vruntime;
 
 	if (delta < 0)
@@ -4606,6 +4613,8 @@ entity_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr, int queued)
 	/*
 	 * Ensure that runnable average is periodically updated.
 	 */
+
+	///更新当前进程实体和就绪队列rq的负载
 	update_load_avg(cfs_rq, curr, UPDATE_TG);
 	update_cfs_group(curr);
 
@@ -4627,7 +4636,7 @@ entity_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr, int queued)
 #endif
 
 	if (cfs_rq->nr_running > 1)
-		check_preempt_tick(cfs_rq, curr);
+		check_preempt_tick(cfs_rq, curr); ///检查当前是否需要调度
 }
 
 
@@ -7258,6 +7267,7 @@ again:
 }
 #endif
 
+///获取红黑树最左边的进程
 struct task_struct *
 pick_next_task_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 {
@@ -11066,9 +11076,11 @@ static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &curr->se;
 
+	///遍历当前进程调度实体
+	///如果开启组机制，还需要调度上一级调度实体；
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
-		entity_tick(cfs_rq, se, queued);
+		entity_tick(cfs_rq, se, queued);  ///检查是否需要调度
 	}
 
 	if (static_branch_unlikely(&sched_numa_balancing))
@@ -11095,13 +11107,14 @@ static void task_fork_fair(struct task_struct *p)
 	rq_lock(rq, &rf);
 	update_rq_clock(rq);
 
+	///获取当前进程所在的CFS就绪队列cfs_rq
 	cfs_rq = task_cfs_rq(current);
 	curr = cfs_rq->curr;
 	if (curr) {
-		update_curr(cfs_rq);
+		update_curr(cfs_rq);  ///更新虚拟时间
 		se->vruntime = curr->vruntime;
 	}
-	place_entity(cfs_rq, se, 1);
+	place_entity(cfs_rq, se, 1);  ///对虚拟时间进行惩罚，防止新进程恶意抢占CPU
 
 	if (sysctl_sched_child_runs_first && curr && entity_before(curr, se)) {
 		/*
@@ -11377,6 +11390,7 @@ int alloc_fair_sched_group(struct task_group *tg, struct task_group *parent)
 	struct cfs_rq *cfs_rq;
 	int i;
 
+	///cfs_rq是指针数组，分配nr_cpu_ids个cfs_rq
 	tg->cfs_rq = kcalloc(nr_cpu_ids, sizeof(cfs_rq), GFP_KERNEL);
 	if (!tg->cfs_rq)
 		goto err;
@@ -11384,9 +11398,10 @@ int alloc_fair_sched_group(struct task_group *tg, struct task_group *parent)
 	if (!tg->se)
 		goto err;
 
+///shares,表示本组的权重
 	tg->shares = NICE_0_LOAD;
 
-	init_cfs_bandwidth(tg_cfs_bandwidth(tg));
+	init_cfs_bandwidth(tg_cfs_bandwidth(tg));///初始化带宽相关信息
 
 	for_each_possible_cpu(i) {
 		cfs_rq = kzalloc_node(sizeof(struct cfs_rq),

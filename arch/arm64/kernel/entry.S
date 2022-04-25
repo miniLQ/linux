@@ -744,7 +744,7 @@ SYM_FUNC_START(cpu_switch_to)
 	ptrauth_keys_install_kernel x1, x8, x9, x10
 	scs_save x0
 	scs_load x1
-	ret
+	ret              ///返回值，切换前执行的task_struct
 SYM_FUNC_END(cpu_switch_to)
 NOKPROBE(cpu_switch_to)
 

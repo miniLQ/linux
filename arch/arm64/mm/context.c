@@ -241,19 +241,19 @@ void check_and_switch_context(struct mm_struct *mm)
 	if (old_active_asid && asid_gen_match(asid) &&
 	    atomic64_cmpxchg_relaxed(this_cpu_ptr(&active_asids),
 				     old_active_asid, asid))
-		goto switch_mm_fastpath;
+		goto switch_mm_fastpath;///新asid还是同一批次，不需要刷新TLB
 
 	raw_spin_lock_irqsave(&cpu_asid_lock, flags);
 	/* Check that our ASID belongs to the current generation. */
 	asid = atomic64_read(&mm->context.id);
-	if (!asid_gen_match(asid)) {
-		asid = new_context(mm);
+	if (!asid_gen_match(asid)) { ///重新比较一次ASID版本号，有溢出，则新分配ASID
+		asid = new_context(mm);   ///分配新的ASID
 		atomic64_set(&mm->context.id, asid);
 	}
 
 	cpu = smp_processor_id();
 	if (cpumask_test_and_clear_cpu(cpu, &tlb_flush_pending))
-		local_flush_tlb_all();
+		local_flush_tlb_all(); ///ASID发生溢出时，刷新本地TLB
 
 	atomic64_set(this_cpu_ptr(&active_asids), asid);
 	raw_spin_unlock_irqrestore(&cpu_asid_lock, flags);
@@ -267,7 +267,7 @@ switch_mm_fastpath:
 	 * emulating PAN.
 	 */
 	if (!system_uses_ttbr0_pan())
-		cpu_switch_mm(mm->pgd, mm);
+		cpu_switch_mm(mm->pgd, mm);  ///进行页表切换
 }
 
 unsigned long arm64_mm_context_get(struct mm_struct *mm)

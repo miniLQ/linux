@@ -50,8 +50,10 @@ void cpu_do_switch_mm(phys_addr_t pgd_phys, struct mm_struct *mm);
 
 static inline void cpu_switch_mm(pgd_t *pgd, struct mm_struct *mm)
 {
-	BUG_ON(pgd == swapper_pg_dir);
-	cpu_set_reserved_ttbr0();
+	BUG_ON(pgd == swapper_pg_dir); ///判断无效pgd，内核线程不用切换mm
+	cpu_set_reserved_ttbr0();      ///设置TTBR0_EL1指向零页
+
+	///切换页表
 	cpu_do_switch_mm(virt_to_phys(pgd),mm);
 }
 
