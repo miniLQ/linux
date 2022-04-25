@@ -477,15 +477,31 @@ struct util_est {
  * Then it is the load_weight's responsibility to consider overflow
  * issues.
  */
+
+///IO型进程runnable_load_sum比CPU型小很多
 struct sched_avg {
-	u64				last_update_time;
-	u64				load_sum;
-	u64				runnable_sum;
-	u32				util_sum;
+	u64				last_update_time;  		///上一次更新的时间点
+	
+	///1.对于调度实体，load_sum统计对象是调度实体在可运行状态下的累计衰减总时间
+	///2.对调度队列，load_sum=decay_sum_load统计"所有进程"的累计工作总负载(时间乘以权重)
+	u64				load_sum;	///对应量化负载	load_avg
+	
+	///调度实体：就绪队列里可运行状态下的累计总衰减时间decay_sum_time
+	///调度队列：统计就绪队列里"所有可运行状态"下进程的累计总负载decay_sum_load
+	u64				runnable_sum;///对应量化负载runnable_avg
+	
+	///1调度实体：正在运行状态下累计衰减时间；
+	///2调度队列：所有处于正在运行状态的衰减总时间
+	u32				util_sum;  ///对应量化算力util_avg
+	
 	u32				period_contrib;
+
+	///1.调度实体，相同；
+	///2.调度队列：load_avg，所有进程量化总负载；runnable_avg可运行状态量化总负载
 	unsigned long			load_avg;
-	unsigned long			runnable_avg;
-	unsigned long			util_avg;
+	unsigned long			runnable_avg; ///在SMP负载均衡调度器中用于衡量CPU是否繁忙
+	
+	unsigned long			util_avg;///实际算力
 	struct util_est			util_est;
 } ____cacheline_aligned;
 
@@ -559,7 +575,7 @@ struct sched_entity {
 	 * Put into separate cache line so it does not
 	 * collide with read-mostly values above.
 	 */
-	struct sched_avg		avg;
+	struct sched_avg		avg;   ///负载调度实体
 #endif
 };
 
