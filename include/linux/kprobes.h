@@ -58,28 +58,28 @@ typedef int (*kretprobe_handler_t) (struct kretprobe_instance *,
 				    struct pt_regs *);
 
 struct kprobe {
-	struct hlist_node hlist;
+	struct hlist_node hlist; 	 ///被用于kprobe全局hash，索引值为被探测点的地址；
 
 	/* list of kprobes for multi-handler support */
-	struct list_head list;
+	struct list_head list;   	 ///用于链接同一被探测点的不同探测kprobe；
 
 	/*count the number of times this probe was temporarily disarmed */
-	unsigned long nmissed;
+	unsigned long nmissed;       ///probe调用的计数(保证一个probe不递归调用)
 
 	/* location of the probe point */
-	kprobe_opcode_t *addr;
+	kprobe_opcode_t *addr; 		 ///被探测点的地址；
 
 	/* Allow user to indicate symbol name of the probe point */
-	const char *symbol_name;
+	const char *symbol_name;	 ///被探测函数的名字；
 
 	/* Offset into the symbol */
-	unsigned int offset;
+	unsigned int offset;   		 ///被探测点在函数内部的偏移，用于探测函数内部的指令，如果该值为0表示函数的入口；
 
 	/* Called before addr is executed. */
-	kprobe_pre_handler_t pre_handler;
+	kprobe_pre_handler_t pre_handler; ///在被探测点指令执行之前调用的回调函数；
 
 	/* Called after addr is executed, unless... */
-	kprobe_post_handler_t post_handler;
+	kprobe_post_handler_t post_handler; ///在被探测指令执行之后调用的回调函数；
 
 	/* Saved opcode (which has been replaced with breakpoint) */
 	kprobe_opcode_t opcode;
@@ -378,23 +378,23 @@ static inline struct kprobe_ctlblk *get_kprobe_ctlblk(void)
 }
 
 kprobe_opcode_t *kprobe_lookup_name(const char *name, unsigned int offset);
-int register_kprobe(struct kprobe *p);
-void unregister_kprobe(struct kprobe *p);
-int register_kprobes(struct kprobe **kps, int num);
-void unregister_kprobes(struct kprobe **kps, int num);
+int register_kprobe(struct kprobe *p);    ///向内核注册kprobe探测点
+void unregister_kprobe(struct kprobe *p); ///卸载kprobe探测点
+int register_kprobes(struct kprobe **kps, int num);    ///注册探测函数向量，包含多个探测点
+void unregister_kprobes(struct kprobe **kps, int num); ///卸载探测函数向量，包含多个探测点
 unsigned long arch_deref_entry_point(void *);
 
-int register_kretprobe(struct kretprobe *rp);
-void unregister_kretprobe(struct kretprobe *rp);
-int register_kretprobes(struct kretprobe **rps, int num);
-void unregister_kretprobes(struct kretprobe **rps, int num);
+int register_kretprobe(struct kretprobe *rp);               ///向内核注册kretprobe探测点
+void unregister_kretprobe(struct kretprobe *rp);			///卸载kretprobe探测点
+int register_kretprobes(struct kretprobe **rps, int num);   ///注册kretprobe函数向量，包含多个探测点
+void unregister_kretprobes(struct kretprobe **rps, int num);///卸载探测函数向量，包含多个探测点
 
 void kprobe_flush_task(struct task_struct *tk);
 
 void kprobe_free_init_mem(void);
 
-int disable_kprobe(struct kprobe *kp);
-int enable_kprobe(struct kprobe *kp);
+int disable_kprobe(struct kprobe *kp);  ///临时暂停指定探测点的探测
+int enable_kprobe(struct kprobe *kp);   ///使能指定探测点的探测
 
 void dump_kprobe(struct kprobe *kp);
 
