@@ -3428,6 +3428,7 @@ void sched_set_stop_task(int cpu, struct task_struct *stop)
 		 * much confusion -- but then, stop work should not
 		 * rely on PI working anyway.
 		 */
+		 ///设置显示为FIFO, 实际是stop类, 与老版本一致避免用户confused？
 		sched_setscheduler_nocheck(stop, SCHED_FIFO, &param);
 
 		stop->sched_class = &stop_sched_class;
