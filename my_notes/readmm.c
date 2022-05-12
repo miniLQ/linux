@@ -333,6 +333,9 @@ shrink_active_list
 	wakeup_kswapd
 	balance_pgdat
 	kswapd_shrink_zone
+
+	shrink_active_list(unsigned long nr_to_scan, struct lruvec * lruvec, struct scan_control * sc, enum lru_list lru)
+
 	kswapd()->balance_pgdat()->kswapd_shrink_node()->shrink_node()->shrink_node_memcgs()
 ///扫描内存节点中所有可回收的页面
 static void shrink_node(pg_data_t *pgdat, struct scan_control *sc)
@@ -360,5 +363,12 @@ static void update_curr(struct cfs_rq *cfs_rq)
 
 	...
 }
+preempt_schedule(void)
 
-thread_info
+
+spin_lock_irq(spinlock_t * lock)
+disable_irq
+	enable_irq(unsigned int irq)
+	check_irq_resend(struct irq_desc * desc, bool inject)
+	arch_local_irq_disable
+

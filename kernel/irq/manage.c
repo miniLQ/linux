@@ -720,7 +720,7 @@ EXPORT_SYMBOL(disable_irq_nosync);
  */
 void disable_irq(unsigned int irq)
 {
-	if (!__disable_irq_nosync(irq))
+	if (!__disable_irq_nosync(irq))   ///等待正在执行的ISR结束,在n号中断ISR中调用disable_irq(n)会导致死锁
 		synchronize_irq(irq);
 }
 EXPORT_SYMBOL(disable_irq);

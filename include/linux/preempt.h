@@ -190,14 +190,14 @@ do { \
 
 #define preempt_enable_no_resched() sched_preempt_enable_no_resched()
 
-#define preemptible()	(preempt_count() == 0 && !irqs_disabled())
+#define preemptible()	(preempt_count() == 0 && !irqs_disabled())   ///抢占条件：未关闭中断，且preempt_count=0;
 
 #ifdef CONFIG_PREEMPTION
 #define preempt_enable() \
 do { \
 	barrier(); \
 	if (unlikely(preempt_count_dec_and_test())) \
-		__preempt_schedule(); \
+		__preempt_schedule(); \                      ///调度产生点
 } while (0)
 
 #define preempt_enable_notrace() \
