@@ -27,9 +27,55 @@ DEFINE_SPINLOCK(ktop_lock);
 
 static int count=0;
 
+
+struct data{
+	int val;
+	struct list_head link;
+};
+struct list_head ptest;
+
+void link_test(struct list_head * link)
+{
+	struct list_head *l,*o, *k;
+	struct data *p,*q;
+	int i=0;
+
+	for (i=0; i < 10; i++)
+	{
+		struct data *ptmp = (struct data*)kmalloc(sizeof(struct data), GFP_KERNEL);
+		ptmp->val = i+1;
+
+		list_add(&ptmp->link,link);
+	}
+	list_for_each_safe(l, o, link) {
+		k = o - 1;
+		printk("---addr l=0x%x\n",l);
+		printk("---addr o=0x%x\n",o);
+		printk("---addr k=0x%x\n",k);
+
+		p = container_of(l, struct data, link);
+		printk("---l val=%d\n",p->val);
+		q = container_of(k, struct data, link);
+		printk("---k val=%d\n\n",q->val);
+	}
+}
+void link_free(struct list_head *link)
+{
+	struct list_head *l,*o;
+	struct data *p;
+
+	list_for_each_safe(l, o, link) {
+		p = container_of(l, struct data, link);
+		list_del(l);
+		kfree(p);
+	}
+
+}
 static int ktop_show(struct seq_file *m, void *v)
 {
 		seq_printf(m, "count=%d\n",count++);
+		link_test(&ptest);
+		link_free(&ptest);
 #if 0
 	struct task_struct *p, *r, *q;
 	struct list_head report_list;
@@ -195,6 +241,7 @@ static const struct proc_ops ktop_proc = {
 static int __init proc_test_init(void)
 {
         printk("---proc_test_init\n");
+	INIT_LIST_HEAD(&ptest);
 
 #if 0
 	int i;
