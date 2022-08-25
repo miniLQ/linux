@@ -36,6 +36,8 @@
 #include <linux/kcsan.h>
 #include <asm/kmap_size.h>
 
+#include <linux/ktop.h>
+
 /* task_struct member predeclarations (sorted alphabetically): */
 struct audit_context;
 struct backing_dev_info;
@@ -307,6 +309,20 @@ struct sched_info {
 
 	/* When were we last queued to run? */
 	unsigned long long		last_queued;
+
+    struct ktop_info        ktop;
+
+#ifdef CONFIG_PROC_KTOP_DEBUG
+    u64             ktop_d_sum_exec;
+    struct list_head        ktop_d_list_entry;
+#ifdef CONFIG_PROC_KTOP_DEBUG_EXACT
+    u64             ktop_d_sum_exec_exact;
+    struct list_head        ktop_d_list_entry_exact;
+    u64             utime;
+    u64             stime;
+#endif
+#endif
+
 
 #endif /* CONFIG_SCHED_INFO */
 };
