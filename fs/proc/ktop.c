@@ -11,6 +11,9 @@
 
 #include <linux/kernel.h>
 
+#define KTOP_DEBUG_PRINT
+#define KTOP_MANUAL
+
 #define KTOP_INTERVAL (MSEC_PER_SEC)
 static u8 cur_idx;
 struct list_head ktop_list[KTOP_I];
@@ -75,6 +78,7 @@ static void ktop_timer_func(struct timer_list * timer)
 }
 DEFINE_TIMER(ktop_timer, ktop_timer_func);
 
+static int count=0;
 static int ktop_show(struct seq_file *m, void *v)
 {
 	struct task_struct *p, *r, *q;
@@ -89,6 +93,8 @@ static int ktop_show(struct seq_file *m, void *v)
 	INIT_LIST_HEAD(&report_list);
 
 	spin_lock_irqsave(&ktop_lock, flags);
+
+	seq_printf(m, "count=%d\n",count++);
 
 	start_idx = cur_idx + 1;
 	if (start_idx == KTOP_I)
@@ -207,6 +213,9 @@ static ssize_t ktop_write(struct file *file, const char __user *user_buf, size_t
 	buf[buf_size - 1] = '\0';
 	if (kstrtol(buf, 0, &val) != 0)
 		return -EINVAL;
+
+	 printk("---write buf:%s",buf);
+
 
 #ifdef KTOP_MANUAL
 	if (val == 1) {

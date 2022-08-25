@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
+#include <linux/ktop.h>
+
 #ifdef CONFIG_SCHEDSTATS
 
 /*
@@ -192,6 +194,10 @@ static void sched_info_arrive(struct rq *rq, struct task_struct *t)
 	t->sched_info.pcount++;
 
 	rq_sched_info_arrive(rq, delta);
+
+#ifdef CONFIG_PROC_KTOP
+	ktop_add(t);
+#endif
 }
 
 /*

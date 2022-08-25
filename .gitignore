@@ -162,3 +162,6 @@ x509.genkey
 
 # Documentation toolchain
 sphinx_*/
+
+_install_arm64
+*.out
