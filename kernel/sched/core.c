@@ -4965,9 +4965,9 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 	 * higher scheduling class, because otherwise those lose the
 	 * opportunity to pull in more work from other CPUs.
 	 */
+	 ///一个优化，如果就绪队列只有普通进程，不需要遍历所有调度器类
 	if (likely(prev->sched_class <= &fair_sched_class &&
-		   rq->nr_running == rq->cfs.h_nr_running)) { ///一个优化，如果就绪队列只有普通进程，不需要遍历所有调度器类
-
+		   rq->nr_running == rq->cfs.h_nr_running)) { 
 		p = pick_next_task_fair(rq, prev, rf);
 		if (unlikely(p == RETRY_TASK))
 			goto restart;
@@ -4984,7 +4984,9 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 restart:
 	put_prev_task_balance(rq, prev, rf);
 
-	for_each_class(class) {///遍历所有调度器类，找出最合适进程
+///按优先级遍历所有调度器类，找出最合适进程
+///stop->deadline->rt->fair
+	for_each_class(class) {	
 		p = class->pick_next_task(rq);
 		if (p)
 			return p;

@@ -550,7 +550,8 @@ static inline bool entity_before(struct sched_entity *a,
 #define __node_2_se(node) \
 	rb_entry((node), struct sched_entity, run_node)
 
-///更新最小虚拟时间
+///更新最小虚拟时间:
+///当前rq，当前se, rq->left_most的最小值，并且保持cfs_rq->min_vruntime递增
 static void update_min_vruntime(struct cfs_rq *cfs_rq)
 {
 	struct sched_entity *curr = cfs_rq->curr;
@@ -656,7 +657,14 @@ int sched_update_scaling(void)
 /*
  * delta /= w
  */
- ///计算虚拟时间
+/* 计算虚拟时间
+ * vruntime = wall_time * (NICE_0_LOAD/se->load)
+            = (wall_time *(NICE_0_LOAD*2^32)/se->load)>>32
+			= (wall_time*NICE_0_LOAD*inv_weight)>>32
+			
+	inv_weight = 2^32/se->load
+	inv_weight->sched_prio_to_wmult[]
+ */
 static inline u64 calc_delta_fair(u64 delta, struct sched_entity *se)
 {
 	if (unlikely(se->load.weight != NICE_0_LOAD))
@@ -673,6 +681,7 @@ static inline u64 calc_delta_fair(u64 delta, struct sched_entity *se)
  *
  * p = (nr <= nl) ? l : l*nr/nl
  */
+///调度延迟，调度周期：保证就绪队列上每个进程都执行至少一次的周期，默认6ms
 static u64 __sched_period(unsigned long nr_running)
 {
 	if (unlikely(nr_running > sched_nr_latency))
@@ -847,7 +856,8 @@ static void update_curr(struct cfs_rq *cfs_rq)
 	if (unlikely(!curr))
 		return;
 
-	delta_exec = now - curr->exec_start;  ///上次调用以来的时间差
+	///上次调用以来的时间差
+	delta_exec = now - curr->exec_start;
 	if (unlikely((s64)delta_exec <= 0))
 		return;
 
@@ -859,7 +869,8 @@ static void update_curr(struct cfs_rq *cfs_rq)
 	curr->sum_exec_runtime += delta_exec;
 	schedstat_add(cfs_rq->exec_clock, delta_exec);
 
-	curr->vruntime += calc_delta_fair(delta_exec, curr);  ///计算虚拟时间
+	///计算虚拟时间
+	curr->vruntime += calc_delta_fair(delta_exec, curr);  
 	update_min_vruntime(cfs_rq);
 
 	if (entity_is_task(curr)) {
@@ -4147,9 +4158,11 @@ place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
 	 * little, place the new task so that it fits in the slot that
 	 * stays open at the end.
 	 */
+	 ///新建进程，vruntime进行惩罚
 	if (initial && sched_feat(START_DEBIT))
 		vruntime += sched_vslice(cfs_rq, se);
 
+	///唤醒睡眠进程，做一定补偿
 	/* sleeps up to a single latency don't count. */
 	if (!initial) {
 		unsigned long thresh = sysctl_sched_latency;
@@ -4165,7 +4178,7 @@ place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
 	}
 
 	/* ensure we never gain time by being placed backwards. */
-	se->vruntime = max_vruntime(se->vruntime, vruntime);
+	se->vruntime = max_vruntime(se->vruntime, vruntime);          ///保证vruntime递增
 }
 
 static void check_enqueue_throttle(struct cfs_rq *cfs_rq);
@@ -10793,8 +10806,7 @@ static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
 	update_overutilized_status(task_rq(curr));
 }
 
-/*
- * called on fork with the child task as argument from the parent's context
+/* called on fork with the child task as argument from the parent's context
  *  - child not yet on the tasklist
  *  - preemption disabled
  */
@@ -10812,10 +10824,11 @@ static void task_fork_fair(struct task_struct *p)
 	cfs_rq = task_cfs_rq(current);
 	curr = cfs_rq->curr;
 	if (curr) {
-		update_curr(cfs_rq);  ///更新虚拟时间
+		update_curr(cfs_rq);  ///更新当前正在运行的调度实体的运行时间
+		///初始化当前创建的新进程的虚拟时间
 		se->vruntime = curr->vruntime;
 	}
-	place_entity(cfs_rq, se, 1);  ///对虚拟时间进行惩罚，防止新进程恶意抢占CPU
+	place_entity(cfs_rq, se, 1);  ///新建进程，对虚拟时间进行惩罚，防止新进程恶意抢占CPU
 
 	if (sysctl_sched_child_runs_first && curr && entity_before(curr, se)) {
 		/*
@@ -10825,7 +10838,8 @@ static void task_fork_fair(struct task_struct *p)
 		swap(curr->vruntime, se->vruntime);
 		resched_curr(rq);
 	}
-
+	///加入就绪队列时，会加上min_vruntime,所以这里先减去一个min_vruntime,
+	///相当于保留相对当前CPU的min_vruntime的一个相对值，这样当前CPU创建的新进程，第一次调度是在另一个CPU时，也能正常工作
 	se->vruntime -= cfs_rq->min_vruntime;
 	rq_unlock(rq, &rf);
 }
@@ -11275,6 +11289,7 @@ static unsigned int get_rr_interval_fair(struct rq *rq, struct task_struct *task
 /*
  * All the scheduling class methods:
  */
+///cfs调度类 
 DEFINE_SCHED_CLASS(fair) = {
 
 	.enqueue_task		= enqueue_task_fair,

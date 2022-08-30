@@ -519,18 +519,18 @@ struct cfs_bandwidth { };
 
 /* CFS-related fields in a runqueue */
 struct cfs_rq {
-	struct load_weight	load;
-	unsigned int		nr_running;
+	struct load_weight	load;   ///就绪队列里所有调度实体权重之和
+	unsigned int		nr_running; ///就绪队列中调度实体个数
 	unsigned int		h_nr_running;      /* SCHED_{NORMAL,BATCH,IDLE} */
 	unsigned int		idle_h_nr_running; /* SCHED_IDLE */
 
 	u64			exec_clock;
-	u64			min_vruntime;
+	u64			min_vruntime;  ///就绪队列中最小的虚拟运行时间
 #ifndef CONFIG_64BIT
 	u64			min_vruntime_copy;
 #endif
 
-	struct rb_root_cached	tasks_timeline;
+	struct rb_root_cached	tasks_timeline;   ///跟踪红黑树信息，缓存最小节点和根节点
 
 	/*
 	 * 'curr' points to currently running entity on this cfs_rq.
@@ -1834,8 +1834,10 @@ struct sched_class {
 	void (*yield_task)   (struct rq *rq);
 	bool (*yield_to_task)(struct rq *rq, struct task_struct *p);
 
+///当进程被创建或唤醒时，检测该进程是否可以抢占CPU上运行的进程，如果可以，标记TIF_NEED_RESCHED
 	void (*check_preempt_curr)(struct rq *rq, struct task_struct *p, int flags);
 
+///从runqueue选择下一个运行的task_struct
 	struct task_struct *(*pick_next_task)(struct rq *rq);
 
 	void (*put_prev_task)(struct rq *rq, struct task_struct *p);

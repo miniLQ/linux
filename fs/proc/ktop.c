@@ -12,7 +12,7 @@
 #include <linux/kernel.h>
 
 #define KTOP_DEBUG_PRINT
-#define KTOP_MANUAL
+//#define KTOP_MANUAL
 
 #define KTOP_INTERVAL (MSEC_PER_SEC)
 static u8 cur_idx;

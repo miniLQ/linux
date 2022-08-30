@@ -343,7 +343,7 @@ struct sched_info {
 
 struct load_weight {
 	unsigned long			weight;
-	u32				inv_weight;
+	u32				inv_weight;        //prio_to_inv_weight
 };
 
 /**
@@ -485,13 +485,13 @@ struct sched_statistics {
 
 struct sched_entity {
 	/* For load-balancing: */
-	struct load_weight		load;
-	struct rb_node			run_node;
+	struct load_weight		load;         ///权重信息，计算vruntime的时候，会用到in_weight
+	struct rb_node			run_node;     ///红黑树挂载点
 	struct list_head		group_node;
-	unsigned int			on_rq;
+	unsigned int			on_rq;        ///加入就绪队列，on_rq=1，否则on_rq=0
 
 	u64				exec_start;
-	u64				sum_exec_runtime;
+	u64				sum_exec_runtime;     ///实际运行时间总和
 	u64				vruntime;               ///虚拟运行时间，加权后的时间，单位ns，与定时器节拍无关
 	u64				prev_sum_exec_runtime;
 
