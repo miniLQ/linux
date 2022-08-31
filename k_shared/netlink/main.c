@@ -13,6 +13,14 @@
 
 #define MAX_PLOAD        125
 
+
+typedef struct _cpuload_cfg 
+{
+	int interval;
+	int pid_focus;
+	char  reserve[8];
+}cpuload_cfg;
+
 typedef struct _user_msg_info
 {
     struct nlmsghdr hdr;
@@ -28,6 +36,9 @@ int main(int argc, char **argv)
     struct nlmsghdr *nlh = NULL;
     struct sockaddr_nl saddr, daddr;
     char *umsg = "user hello netlink!!";
+	cpuload_cfg data_info;
+	data_info.interval = 20;
+	data_info.pid_focus= 20;
 
     /* 创建NETLINK socket */
     skfd = socket(AF_NETLINK, SOCK_RAW, NETLINK_CPULOAD);
@@ -39,7 +50,7 @@ int main(int argc, char **argv)
 
     memset(&saddr, 0, sizeof(saddr));
     saddr.nl_family = AF_NETLINK; //AF_NETLINK
-    saddr.nl_pid = 100;  //端口号(port ID) 
+    saddr.nl_pid = USER_PORT;  //端口号(port ID) 
     saddr.nl_groups = 0;
     if(bind(skfd, (struct sockaddr *)&saddr, sizeof(saddr)) != 0)
     {
@@ -61,7 +72,8 @@ int main(int argc, char **argv)
     nlh->nlmsg_seq = 0;
     nlh->nlmsg_pid = saddr.nl_pid; //self port
 
-    memcpy(NLMSG_DATA(nlh), umsg, strlen(umsg));
+    //memcpy(NLMSG_DATA(nlh), umsg, strlen(umsg));
+    memcpy(NLMSG_DATA(nlh), (char *)&data_info, sizeof(data_info));
     ret = sendto(skfd, nlh, nlh->nlmsg_len, 0, (struct sockaddr *)&daddr, sizeof(struct sockaddr_nl));
     if(!ret)
     {
@@ -73,6 +85,7 @@ int main(int argc, char **argv)
 
     memset(&u_info, 0, sizeof(u_info));
     len = sizeof(struct sockaddr_nl);
+	while(1) {
 		ret = recvfrom(skfd, &u_info, sizeof(user_msg_info), 0, (struct sockaddr *)&daddr, &len);
 		if(!ret)
 		{
@@ -82,6 +95,7 @@ int main(int argc, char **argv)
 		}
 
     	printf("===from kernel:%s\n", u_info.msg);
+	}
     close(skfd);
 
     free((void *)nlh);
