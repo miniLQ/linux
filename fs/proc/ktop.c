@@ -11,6 +11,14 @@
 
 #include <linux/kernel.h>
 
+#include <linux/types.h>
+#include <net/sock.h>
+#include <linux/netlink.h>
+
+#define NETLINK_CPULOAD  30 
+#define MSG_LEN          256
+#define USER_PORT        100
+
 #define KTOP_DEBUG_PRINT
 //#define KTOP_MANUAL
 
@@ -26,6 +34,42 @@ u32 ktop_stat__add;
 #endif
 
 DEFINE_SPINLOCK(ktop_lock);
+
+struct sock *nlsk_cpuload = NULL;
+extern struct net init_net;
+
+int send_usrmsg_cpuload(char *pbuf, uint16_t len)
+{
+    struct sk_buff *nl_skb;
+    struct nlmsghdr *nlh;
+
+    int ret;
+
+    /* 创建sk_buff 空间 */
+    nl_skb = nlmsg_new(len, GFP_ATOMIC);
+    if(!nl_skb)
+    {
+        printk("netlink alloc failure\n");
+        return -1;
+    }
+
+    /* 设置netlink消息头部 */
+    nlh = nlmsg_put(nl_skb, 0, 0, NETLINK_CPULOAD, len, 0);
+    if(nlh == NULL)
+    {
+        printk("nlmsg_put failaure \n");
+        nlmsg_free(nl_skb);
+        return -1;
+    }
+
+    /* 拷贝数据发送 */
+    memcpy(nlmsg_data(nlh), pbuf, len);
+    ret = netlink_unicast(nlsk_cpuload, nl_skb, USER_PORT, MSG_DONTWAIT);
+
+    //nlmsg_free(nl_skb);
+
+    return ret;
+}
 
 void __always_inline ktop_add(struct task_struct *p)
 {
@@ -94,7 +138,7 @@ static int ktop_show(struct seq_file *m, void *v)
 
 	spin_lock_irqsave(&ktop_lock, flags);
 
-	seq_printf(m, "count=%d\n",count++);
+	seq_printf(m, "count=%d,cur_idx=%d\n",count++,cur_idx);
 
 	start_idx = cur_idx + 1;
 	if (start_idx == KTOP_I)
@@ -233,18 +277,46 @@ static int ktop_open(struct inode *inode, struct file *file)
 	return single_open(file, ktop_show, NULL);
 }
 
- static const struct proc_ops ktop_proc = {
-     .proc_open           = ktop_open,
-     .proc_read           = seq_read,
-     .proc_lseek         = seq_lseek,
-     .proc_write          = ktop_write,
-     .proc_release        = single_release,
- };
+static const struct proc_ops ktop_proc = {
+	.proc_open           = ktop_open,
+	.proc_read           = seq_read,
+	.proc_lseek         = seq_lseek,
+	.proc_write          = ktop_write,
+	.proc_release        = single_release,
+};
 
+
+static void netlink_rcv_msg_cpuload(struct sk_buff *skb)
+{
+    struct nlmsghdr *nlh = NULL;
+    char *umsg = NULL;
+    char *kmsg = "hello users!!!";
+    char kmsg1[256]; 
+    if(skb->len >= nlmsg_total_size(0))
+    {
+        nlh = nlmsg_hdr(skb);
+        umsg = NLMSG_DATA(nlh);
+        if(umsg)
+        {
+            printk("---kernel recv from user: %s\n", umsg);
+            send_usrmsg_cpuload(kmsg, strlen(kmsg));
+			//sprintf(kmsg1,"send count:%d",count++);
+            //send_usrmsg(kmsg1, strlen(kmsg1));
+
+        }
+    }
+}
+
+
+
+struct netlink_kernel_cfg cfg_cpuload = { 
+        .input  = netlink_rcv_msg_cpuload, /* set recv callback */
+};  
 
 static int __init proc_ktop_init(void)
 {
 	int i;
+    printk("0------test_netlink_init\n");
 	for(i = 0 ; i < KTOP_I ; i++) {
 		INIT_LIST_HEAD(&ktop_list[i]);
 	}
@@ -255,7 +327,29 @@ static int __init proc_ktop_init(void)
 #endif
 
 	proc_create("ktop", 0666, NULL, &ktop_proc);
-	return 0;
+#if 1
+    /* create netlink socket */
+    nlsk_cpuload = (struct sock *)netlink_kernel_create(&init_net, NETLINK_CPULOAD, &cfg_cpuload);
+    if(nlsk_cpuload == NULL)
+    {   
+        printk("netlink_kernel_create error !\n");
+        return -1; 
+    }   
+    printk("------test_netlink_init\n");
+
+#endif
+return 0;
 }
 
 fs_initcall(proc_ktop_init);
+#if 0
+void test_netlink_exit(void)
+{
+    if (nlsk_cpuload){
+        netlink_kernel_release(nlsk_cpuload); /* release ..*/
+        nlsk_cpuload = NULL;
+    }   
+    printk("test_netlink_exit!\n");
+}
+
+#endif
