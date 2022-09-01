@@ -13,12 +13,12 @@
 
 #define MAX_PLOAD        125
 
-
-typedef struct _cpuload_cfg 
+typedef struct _cpuload_cfg
 {
 	int interval;
+	int threshold;
 	int pid_focus;
-	char  reserve[8];
+	char reserve[20];
 }cpuload_cfg;
 
 typedef struct _user_msg_info
@@ -36,9 +36,18 @@ int main(int argc, char **argv)
     struct nlmsghdr *nlh = NULL;
     struct sockaddr_nl saddr, daddr;
     char *umsg = "user hello netlink!!";
-	cpuload_cfg data_info;
-	data_info.interval = 20;
-	data_info.pid_focus= 20;
+	cpuload_cfg cfg_info;
+	if (argc < 4) {
+		cfg_info.interval = 20;
+		cfg_info.pid_focus= 20;
+		cfg_info.threshold = 30;
+	} else {
+		cfg_info.interval = atoi(argv[1]);
+		cfg_info.pid_focus= atoi(argv[2]); 
+		cfg_info.threshold = atoi(argv[3]);
+	}
+
+	
 
     /* 创建NETLINK socket */
     skfd = socket(AF_NETLINK, SOCK_RAW, NETLINK_CPULOAD);
@@ -73,7 +82,7 @@ int main(int argc, char **argv)
     nlh->nlmsg_pid = saddr.nl_pid; //self port
 
     //memcpy(NLMSG_DATA(nlh), umsg, strlen(umsg));
-    memcpy(NLMSG_DATA(nlh), (char *)&data_info, sizeof(data_info));
+    memcpy(NLMSG_DATA(nlh), (char *)&cfg_info, sizeof(cfg_info));
     ret = sendto(skfd, nlh, nlh->nlmsg_len, 0, (struct sockaddr *)&daddr, sizeof(struct sockaddr_nl));
     if(!ret)
     {
@@ -94,7 +103,8 @@ int main(int argc, char **argv)
 			exit(-1);
 		}
 
-    	printf("===from kernel:%s\n", u_info.msg);
+    	//printf("===from kernel:%s\n", u_info.msg);
+    	printf("%s\n", u_info.msg);
 	}
     close(skfd);
 

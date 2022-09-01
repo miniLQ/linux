@@ -24,13 +24,15 @@
 
 #define KTOP_INTERVAL (1*MSEC_PER_SEC)
 
-static int ktop_interval_s= MSEC_PER_SEC*1;
+static int ktop_interval_s = MSEC_PER_SEC*1;
+static int ktop_threshold = 10;
 
 typedef struct _cpuload_cfg
 {
 	int interval;
+	int threshold;
 	int pid_focus;
-	char reserve[8];
+	char reserve[20];
 } cpuload_cfg;
 
 static u8 cur_idx;
@@ -355,13 +357,12 @@ static int ktop_report(void)
 
 	if(!list_empty(&report_list)) {
 		char comm[TASK_COMM_LEN];
-		//seq_printf(m, "duration:%d total_tasks:%u\n", (u32)(delta >> 20), run_tasks);
-		//seq_printf(m, "%-9s %-16s %-11s %-9s %-16s\n", "TID", "COMM", "SUM", "PID", "PROCESS-COMM");
-		sprintf(report_buf, "duration:%d total_tasks:%u\n", (u32)(delta >> 20), run_tasks);
-		send_usrmsg_cpuload(report_buf,strlen(report_buf));
 
-		sprintf(report_buf,  "%-9s %-16s %-11s %-9s %-16s\n", "TID", "COMM", "SUM", "PID", "PROCESS-COMM");
-		send_usrmsg_cpuload(report_buf,strlen(report_buf));
+		//sprintf(report_buf, "duration:%d total_tasks:%u\n", (u32)(delta >> 20), run_tasks);
+		//send_usrmsg_cpuload(report_buf,strlen(report_buf));
+
+		//sprintf(report_buf,  "%-9s %-16s %-11s %-9s %-16s\n", "TID", "COMM", "SUM", "PID", "PROCESS-COMM");
+		//send_usrmsg_cpuload(report_buf,strlen(report_buf));
 
 		list_for_each_prev_safe(l, o, &report_list) {
 			k = l - (KTOP_REPORT-1);
@@ -378,7 +379,7 @@ static int ktop_report(void)
 				   p->tgid, (p->group_leader != p) ? (q ? comm : "EXITED") : p->comm);
 		*/
 		u32 sum_exec_ =  (p->sched_info.ktop.sum_exec[KTOP_REPORT-1]*100)/(u32)(delta>>20);
-		if (sum_exec_ > 30) {
+		if (sum_exec_ > ktop_threshold) {
 			sprintf(report_buf, "%-9d %-16s %-11u %-9d %-16s\n",
 				   p->pid, p->comm, sum_exec_,
 				   p->tgid, (p->group_leader != p) ? (q ? comm : "EXITED") : p->comm);
@@ -451,9 +452,10 @@ static void netlink_rcv_msg_cpuload(struct sk_buff *skb)
         {
             printk("---kernel recv from user: %s\n", umsg);
 			puser_data = (cpuload_cfg *)umsg;
-			printk("set interval=%d,pid_front=%d\n",puser_data->interval,puser_data->pid_focus);
+			printk("set interval=%d,threshold=%d,pid_front=%d\n",puser_data->interval,puser_data->threshold,puser_data->pid_focus);
 
 			ktop_interval_s = puser_data->interval;
+			ktop_threshold = puser_data->threshold;
 
 			mod_timer(&ktop_timer, jiffies + msecs_to_jiffies(MSEC_PER_SEC*ktop_interval_s));
 

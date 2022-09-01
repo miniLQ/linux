@@ -10,7 +10,7 @@ int main(int argc, char **argv)
 	int val = atoi(argv[1]);
 	printf("hello,input:%d\n",val);
 	while(1) {
-		//usleep(val*1000);
+		usleep(val*1000);
 		count++;
 	}
 
