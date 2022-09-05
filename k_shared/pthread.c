@@ -36,6 +36,8 @@ int main()
 		printf("create pthread error.\n");
 		exit(1);
 	}
+	pthread_setname_np(id, "thread1");
+	pthread_setname_np(id1, "thread2");
 
 	pthread_join(id,NULL);
 	pthread_join(id1,NULL);
