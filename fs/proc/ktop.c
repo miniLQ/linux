@@ -15,27 +15,34 @@
 #include <net/sock.h>
 #include <linux/netlink.h>
 
-#define NETLINK_CPULOAD  30 
+#define NETLINK_CPULOAD  30
 #define MSG_LEN          256
-#define USER_PORT        100
 
 #define KTOP_DEBUG_PRINT
 //#define KTOP_MANUAL
 
 #define KTOP_INTERVAL (1*MSEC_PER_SEC)
 
-static int ktop_interval_s = MSEC_PER_SEC*1;
-static int ktop_threshold = 10;
 
-typedef struct _cpuload_cfg
-{
+#define KTOP_DIR_NAME             "ktop"
+#define KTOP_INTERVAL_PROC_NAME   "interval"
+#define KTOP_THRESHOLD_PROC_NAME  "threshold"
+#define KTOP_PID_PROC_NAME        "pid_focus"
+
+typedef struct _cpuload_cfg {
 	int interval;
 	int threshold;
 	int pid_focus;
 	char reserve[20];
 } cpuload_cfg;
 
-static u8 cur_idx;
+cpuload_cfg  gktop_config = {
+	.interval = MSEC_PER_SEC * 3,
+	.threshold = 10,
+	.pid_focus = 0,
+};
+
+static u8 cur_idx=0;
 struct list_head ktop_list[KTOP_I];
 u64 ktop_time[KTOP_I];
 #define KTOP_MAX 1000
@@ -55,47 +62,46 @@ char report_buf[1024];
 static int ktop_report(void);
 int send_usrmsg_cpuload(char *pbuf, uint16_t len)
 {
-    struct sk_buff *nl_skb;
-    struct nlmsghdr *nlh;
+	struct sk_buff *nl_skb;
+	struct nlmsghdr *nlh;
 
-    int ret;
+	int ret;
 
-    /* 创建sk_buff 空间 */
-    nl_skb = nlmsg_new(len, GFP_ATOMIC);
-    if(!nl_skb)
-    {
-        printk("netlink alloc failure\n");
-        return -1;
-    }
+	/* 创建sk_buff 空间 */
+	nl_skb = nlmsg_new(len, GFP_ATOMIC);
+	if (!nl_skb) {
+		printk("netlink alloc failure\n");
+		return -1;
+	}
 
-    /* 设置netlink消息头部 */
-    nlh = nlmsg_put(nl_skb, 0, 0, NETLINK_CPULOAD, len, 0);
-    if(nlh == NULL)
-    {
-        printk("nlmsg_put failaure \n");
-        nlmsg_free(nl_skb);
-        return -1;
-    }
+	/* 设置netlink消息头部 */
+	nlh = nlmsg_put(nl_skb, 0, 0, NETLINK_CPULOAD, len, 0);
+	if (nlh == NULL) {
+		printk("nlmsg_put failaure \n");
+		nlmsg_free(nl_skb);
+		return -1;
+	}
 
-    /* 拷贝数据发送 */
-    memcpy(nlmsg_data(nlh), pbuf, len);
-    ret = netlink_unicast(nlsk_cpuload, nl_skb, USER_PORT, MSG_DONTWAIT);
+	/* 拷贝数据发送 */
+	memcpy(nlmsg_data(nlh), pbuf, len);
+//	ret = netlink_unicast(nlsk_cpuload, nl_skb, USER_PORT, MSG_DONTWAIT);
+	ret = netlink_broadcast(nlsk_cpuload, nl_skb, 0, 1,  MSG_DONTWAIT);
 
-    //nlmsg_free(nl_skb);
 
-    return ret;
+	//nlmsg_free(nl_skb);
+
+	return ret;
 }
 
 void __always_inline ktop_add(struct task_struct *p)
 {
 	unsigned long flags;
 	if (!p->sched_info.ktop.sum_exec[cur_idx]) {
-		if(spin_trylock_irqsave(&ktop_lock, flags)) {
+		if (spin_trylock_irqsave(&ktop_lock, flags)) {
 			/* TODO this could change to single ktop_n */
 			if (ktop_n < KTOP_MAX) {
 				ktop_n++;
-				p->sched_info.ktop.sum_exec[cur_idx] =
-					max(1U, (u32)(p->se.sum_exec_runtime >> 20));
+				p->sched_info.ktop.sum_exec[cur_idx]  = max(1U, (u32)(p->se.sum_exec_runtime >> 20));
 				get_task_struct(p);
 				list_add(&p->sched_info.ktop.list_entry[cur_idx], &ktop_list[cur_idx]);
 			}
@@ -106,165 +112,53 @@ void __always_inline ktop_add(struct task_struct *p)
 	ktop_stat__add++;
 #endif
 }
-
-static void ktop_timer_func(struct timer_list * timer)
+static void clean_ktop_list(void)
 {
-	struct task_struct *p;
 	struct list_head *k, *l, *m;
+	struct task_struct *p;
+	cur_idx = 0;
+	ktop_n = 0;
+
+	list_for_each_safe(l, m, &ktop_list[cur_idx]) {
+		k = l - cur_idx;
+		p = container_of(k, struct task_struct, sched_info.ktop.list_entry[0]);
+		p->sched_info.ktop.sum_exec[cur_idx] = 0;
+		//printk("---pid=%d,cur_idx=%d\n",p->pid,cur_idx);
+		list_del(l);
+		put_task_struct(p);
+	}
+}
+static void ktop_timer_func(struct timer_list *timer)
+{
+	unsigned long flags;
 
 #ifdef KTOP_DEBUG_PRINT
 	ktop_pr_dbg("ktop_n=%d", ktop_n);
 	ktop_pr_dbg("ktop_stat__add=%d", ktop_stat__add);
 	ktop_stat__add = 0;
 #endif
-	if(spin_trylock(&ktop_lock)) {
-		cur_idx++;
-		if (cur_idx >= KTOP_I)
-			cur_idx = 0;
-		ktop_n = 0;
-		list_for_each_safe(l, m, &ktop_list[cur_idx]) {
-			k = l - cur_idx;
-			p = container_of(k, struct task_struct, sched_info.ktop.list_entry[0]);
-			p->sched_info.ktop.sum_exec[cur_idx] = 0;
-			list_del(l);
-			put_task_struct(p);
-		}
-		ktop_time[cur_idx] = ktime_get_boot_fast_ns();
-		spin_unlock(&ktop_lock);
-		mod_timer(timer, jiffies + msecs_to_jiffies(MSEC_PER_SEC*ktop_interval_s));
-	} else
-		mod_timer(timer, jiffies + msecs_to_jiffies(MSEC_PER_SEC*ktop_interval_s*2));
-
 
 	ktop_report();
-}
-DEFINE_TIMER(ktop_timer, ktop_timer_func);
-
-static int count=0;
-static int ktop_show(struct seq_file *m, void *v)
-{
-	struct task_struct *p, *r, *q;
-	struct list_head report_list;
-	struct list_head *k, *l, *n, *o;
-	bool report;
-	int h, i, j = 0, start_idx;
-	u32 run_tasks = 0;
-	u64 now;
-	u64 delta;
-	unsigned long flags;
-	INIT_LIST_HEAD(&report_list);
 
 	spin_lock_irqsave(&ktop_lock, flags);
 
-	seq_printf(m, "count=%d,cur_idx=%d\n",count++,cur_idx);
+	clean_ktop_list();
 
-	start_idx = cur_idx + 1;
-	if (start_idx == KTOP_I)
-		start_idx =  0;
-
-	now = ktime_get_boot_fast_ns();
-	delta = now - ktop_time[start_idx];
-
-	for (h = 0, i = start_idx; h < KTOP_I; h++) {
-		list_for_each_safe(l, o, &ktop_list[i]) {
-			int a;
-			u32 sum;
-			bool added = false;
-			report = false;
-			k = l - i;
-			p = container_of(k, struct task_struct, sched_info.ktop.list_entry[0]);
-			a = i;
-			while (a != start_idx) {
-				a++;
-				if (a == KTOP_I)
-					a = 0;
-				if (p->sched_info.ktop.sum_exec[i])
-					added = true;
-			}
-			if (added)
-				break;
-			run_tasks ++;
-			sum = (u32)(p->se.sum_exec_runtime >> 20);
-			p->sched_info.ktop.sum_exec[KTOP_REPORT-1] =
-				sum > p->sched_info.ktop.sum_exec[i] ?
-				(sum - p->sched_info.ktop.sum_exec[i]) : 0;
-			ktop_pr_dbg("%s() line:%d start: p=%d comm=%s sum=%u\n", __func__, __LINE__,
-				    p->pid, p->comm, p->sched_info.ktop.sum_exec[KTOP_REPORT-1]);
-			list_for_each(n, &report_list) {
-				k = n - (KTOP_REPORT-1);
-				r = container_of(k, struct task_struct, sched_info.ktop.list_entry[0]);
-				if (p->sched_info.ktop.sum_exec[KTOP_REPORT-1] >
-				    r->sched_info.ktop.sum_exec[KTOP_REPORT-1]) {
-					report = true;
-					q = r;
-				}
-				else
-					break;
-			}
-			if (report || j < KTOP_RP_NUM) {
-				get_task_struct(p);
-				if(!report)
-					list_add(&p->sched_info.ktop.list_entry[KTOP_REPORT-1], &report_list);
-				else
-					list_add(&p->sched_info.ktop.list_entry[KTOP_REPORT-1],
-						 &q->sched_info.ktop.list_entry[KTOP_REPORT-1]);
-				j++;
-				if (j > KTOP_RP_NUM) {
-					k = report_list.next;
-					k = k - (KTOP_REPORT-1);
-					p = container_of(k, struct task_struct, sched_info.ktop.list_entry[0]);
-					list_del(report_list.next);
-					put_task_struct(p);
-				}
-			}
-		}
-		if (i == 0)
-			i =  KTOP_I -1;
-		else
-			i--;
-	}
+	ktop_time[cur_idx] = ktime_get_boot_fast_ns();
+	mod_timer(timer, jiffies + msecs_to_jiffies(gktop_config.interval));
 
 	spin_unlock_irqrestore(&ktop_lock, flags);
-
-#ifdef KTOP_DEBUG_PRINT
-	list_for_each(n, &report_list) {
-		k = n - (KTOP_REPORT-1);
-		r = container_of(k, struct task_struct, sched_info.ktop.list_entry[0]);
-		ktop_pr_dbg("%s() line:%d final: p=%d comm=%-16s sum=%u\n",
-			    __func__, __LINE__, r->pid, r->comm,
-			    r->sched_info.ktop.sum_exec[KTOP_REPORT-1]);
-	}
-#endif
-
-	if(!list_empty(&report_list)) {
-		char comm[TASK_COMM_LEN];
-		seq_printf(m, "duration:%d total_tasks:%u\n", (u32)(delta >> 20), run_tasks);
-		seq_printf(m, "%-9s %-16s %-11s %-9s %-16s\n", "TID", "COMM", "SUM", "PID", "PROCESS-COMM");
-		list_for_each_prev_safe(l, o, &report_list) {
-			k = l - (KTOP_REPORT-1);
-			p = container_of(k, struct task_struct, sched_info.ktop.list_entry[0]);
-			if (p->group_leader != p) {
-				rcu_read_lock();
-				q = find_task_by_vpid(p->tgid);
-				if (q)
-					get_task_comm(comm, q);
-				rcu_read_unlock();
-			}
-			seq_printf(m, "%-9d %-16s %-11u %-9d %-16s\n",
-				   p->pid, p->comm, p->sched_info.ktop.sum_exec[KTOP_REPORT-1],
-				   p->tgid, (p->group_leader != p) ? (q ? comm : "EXITED") : p->comm);
-			list_del(l);
-			put_task_struct(p);
-		}
-	}
-
-	return 0;
 }
+
+DEFINE_TIMER(ktop_timer, ktop_timer_func);
+
 static int ktop_report(void)
 {
 	struct task_struct *p, *r, *q;
+	struct task_struct *r2;
 	struct list_head report_list;
 	struct list_head *k, *l, *n, *o;
+	struct list_head *k2, *l2, *n2, *o2;
 	bool report;
 	int h, i, j = 0, start_idx;
 	u32 run_tasks = 0;
@@ -275,11 +169,9 @@ static int ktop_report(void)
 
 	spin_lock_irqsave(&ktop_lock, flags);
 
-	//printk("count=%d,cur_idx=%d\n",count++,cur_idx);
-
 	start_idx = cur_idx + 1;
 	if (start_idx == KTOP_I)
-		start_idx =  0;
+		start_idx = 0;
 
 	now = ktime_get_boot_fast_ns();
 	delta = now - ktop_time[start_idx];
@@ -291,6 +183,7 @@ static int ktop_report(void)
 			bool added = false;
 			report = false;
 			k = l - i;
+
 			p = container_of(k, struct task_struct, sched_info.ktop.list_entry[0]);
 			a = i;
 			while (a != start_idx) {
@@ -302,35 +195,36 @@ static int ktop_report(void)
 			}
 			if (added)
 				break;
-			run_tasks ++;
-			sum = (u32)(p->se.sum_exec_runtime >> 20);
-			p->sched_info.ktop.sum_exec[KTOP_REPORT-1] =
-				sum > p->sched_info.ktop.sum_exec[i] ?
-				(sum - p->sched_info.ktop.sum_exec[i]) : 0;
-			ktop_pr_dbg("%s() line:%d start: p=%d comm=%s sum=%u\n", __func__, __LINE__,
-				    p->pid, p->comm, p->sched_info.ktop.sum_exec[KTOP_REPORT-1]);
+			run_tasks++;
+			sum = (u32) (p->se.sum_exec_runtime >> 20);
+			p->sched_info.ktop.sum_exec[KTOP_REPORT - 1] =
+			    sum > p->sched_info.ktop.sum_exec[i] ?
+			    (sum - p->sched_info.ktop.sum_exec[i]) : 0;
+			ktop_pr_dbg("%s() line:%d start: p=%d comm=%s sum=%u\n",
+						__func__, __LINE__, p->pid, p->comm,
+						p->sched_info.ktop.sum_exec[KTOP_REPORT - 1]);
 			list_for_each(n, &report_list) {
-				k = n - (KTOP_REPORT-1);
+				k = n - (KTOP_REPORT - 1);
 				r = container_of(k, struct task_struct, sched_info.ktop.list_entry[0]);
-				if (p->sched_info.ktop.sum_exec[KTOP_REPORT-1] >
-				    r->sched_info.ktop.sum_exec[KTOP_REPORT-1]) {
+				//printk("run_tasks:%d,p--->time:%d,r--->time:%d\n", run_tasks,p->sched_info.ktop.sum_exec[KTOP_REPORT - 1],r->sched_info.ktop.sum_exec[KTOP_REPORT - 1] );
+				if (p->sched_info.ktop.sum_exec[KTOP_REPORT - 1] > r->sched_info.ktop.sum_exec[KTOP_REPORT - 1]) {
 					report = true;
 					q = r;
-				}
-				else
+				} else {
 					break;
+				}
 			}
 			if (report || j < KTOP_RP_NUM) {
 				get_task_struct(p);
-				if(!report)
-					list_add(&p->sched_info.ktop.list_entry[KTOP_REPORT-1], &report_list);
-				else
-					list_add(&p->sched_info.ktop.list_entry[KTOP_REPORT-1],
-						 &q->sched_info.ktop.list_entry[KTOP_REPORT-1]);
+				if (!report) {
+					list_add(&p->sched_info.ktop.list_entry[KTOP_REPORT - 1], &report_list);
+				} else {
+					list_add(&p->sched_info.ktop.list_entry[KTOP_REPORT - 1], &q->sched_info.ktop.list_entry[KTOP_REPORT  - 1]);
+				}
 				j++;
 				if (j > KTOP_RP_NUM) {
 					k = report_list.next;
-					k = k - (KTOP_REPORT-1);
+					k = k - (KTOP_REPORT - 1);
 					p = container_of(k, struct task_struct, sched_info.ktop.list_entry[0]);
 					list_del(report_list.next);
 					put_task_struct(p);
@@ -338,7 +232,7 @@ static int ktop_report(void)
 			}
 		}
 		if (i == 0)
-			i =  KTOP_I -1;
+			i = KTOP_I - 1;
 		else
 			i--;
 	}
@@ -347,25 +241,47 @@ static int ktop_report(void)
 
 #ifdef KTOP_DEBUG_PRINT
 	list_for_each(n, &report_list) {
-		k = n - (KTOP_REPORT-1);
-		r = container_of(k, struct task_struct, sched_info.ktop.list_entry[0]);
+		k = n - (KTOP_REPORT - 1);
+		r = container_of(k, struct task_struct,	sched_info.ktop.list_entry[0]);
 		ktop_pr_dbg("%s() line:%d final: p=%d comm=%-16s sum=%u\n",
 			    __func__, __LINE__, r->pid, r->comm,
-			    r->sched_info.ktop.sum_exec[KTOP_REPORT-1]);
+			    r->sched_info.ktop.sum_exec[KTOP_REPORT - 1]);
 	}
 #endif
 
-	if(!list_empty(&report_list)) {
+	list_for_each(n, &report_list) {
+		k = n - (KTOP_REPORT - 1);
+		r = container_of(k, struct task_struct,	sched_info.ktop.list_entry[0]);
+
+		list_for_each_safe(n2,o2,n) {
+			if (n2 == &report_list) {
+				break;
+			}
+			k2 = n2 - (KTOP_REPORT - 1);
+			r2 = container_of(k2, struct task_struct,	sched_info.ktop.list_entry[0]);
+			if (r->tgid == r2->tgid) {
+				r->sched_info.ktop.sum_exec[KTOP_REPORT - 1] += r2->sched_info.ktop.sum_exec[KTOP_REPORT - 1];
+				list_del(n2);
+				put_task_struct(r2);
+			}
+		}
+	}
+	
+#ifdef KTOP_DEBUG_PRINT
+	list_for_each(n, &report_list) {
+		k = n - (KTOP_REPORT - 1);
+		r = container_of(k, struct task_struct,	sched_info.ktop.list_entry[0]);
+		ktop_pr_dbg("%s() line:%d final: p=%d comm=%-16s sum=%u\n",
+			    __func__, __LINE__, r->pid, r->comm,
+			    r->sched_info.ktop.sum_exec[KTOP_REPORT - 1]);
+	}
+#endif
+
+	if (!list_empty(&report_list)) {
 		char comm[TASK_COMM_LEN];
 
-		//sprintf(report_buf, "duration:%d total_tasks:%u\n", (u32)(delta >> 20), run_tasks);
-		//send_usrmsg_cpuload(report_buf,strlen(report_buf));
-
-		//sprintf(report_buf,  "%-9s %-16s %-11s %-9s %-16s\n", "TID", "COMM", "SUM", "PID", "PROCESS-COMM");
-		//send_usrmsg_cpuload(report_buf,strlen(report_buf));
-
 		list_for_each_prev_safe(l, o, &report_list) {
-			k = l - (KTOP_REPORT-1);
+			k = l - (KTOP_REPORT - 1);
 			p = container_of(k, struct task_struct, sched_info.ktop.list_entry[0]);
 			if (p->group_leader != p) {
 				rcu_read_lock();
@@ -374,18 +290,18 @@ static int ktop_report(void)
 					get_task_comm(comm, q);
 				rcu_read_unlock();
 			}
-		/*	seq_printf(m, "%-9d %-16s %-11u %-9d %-16s\n",
-				   p->pid, p->comm, p->sched_info.ktop.sum_exec[KTOP_REPORT-1],
-				   p->tgid, (p->group_leader != p) ? (q ? comm : "EXITED") : p->comm);
-		*/
-		u32 sum_exec_ =  (p->sched_info.ktop.sum_exec[KTOP_REPORT-1]*100)/(u32)(delta>>20);
-		if (sum_exec_ > ktop_threshold) {
-			sprintf(report_buf, "%-9d %-16s %-11u %-9d %-16s\n",
-				   p->pid, p->comm, sum_exec_,
-				   p->tgid, (p->group_leader != p) ? (q ? comm : "EXITED") : p->comm);
-	
-			send_usrmsg_cpuload(report_buf,strlen(report_buf));
-		}
+			u32 sum_exec_ = (p->sched_info.ktop.sum_exec[KTOP_REPORT - 1]  *100) / (u32) ((delta*nr_cpu_ids) >> 20);
+			if(p->tgid != gktop_config.pid_focus && sum_exec_ > gktop_config.threshold) {
+				sprintf(report_buf,"%-9d %-16s %-11u %-9d %-16s\n",
+									p->pid, 
+									p->comm, 
+									sum_exec_,
+									p->tgid,
+									(p->group_leader != p) ? (q ? comm : "EXITED") : p->comm);
+
+				send_usrmsg_cpuload(report_buf, strlen(report_buf));
+				printk("---%s\n",report_buf);
+			}
 			list_del(l);
 			put_task_struct(p);
 		}
@@ -394,12 +310,35 @@ static int ktop_report(void)
 	return 0;
 }
 
+static int ktop_interval_show(struct seq_file *m, void *v)
+{
+	printk("%d\n", gktop_config.interval);
 
-static ssize_t ktop_write(struct file *file, const char __user *user_buf, size_t nbytes, loff_t *ppos)
+	return 0;
+}
+
+static int ktop_threshold_show(struct seq_file *m, void *v)
+{
+	printk("%d\n", gktop_config.threshold);
+
+	return 0;
+}
+
+static int ktop_pid_show(struct seq_file *m, void *v)
+{
+	printk("%d\n", gktop_config.pid_focus);
+
+	printk("cput num:%d\n",nr_cpu_ids);
+
+	return 0;
+}
+
+static ssize_t ktop_interval_write(struct file *file, const char __user * user_buf, size_t nbytes, loff_t * ppos)
 {
 	char buf[32];
 	size_t buf_size;
 	long val;
+	unsigned long flags;
 
 	if (!nbytes)
 		return -EINVAL;
@@ -410,105 +349,242 @@ static ssize_t ktop_write(struct file *file, const char __user *user_buf, size_t
 	if (kstrtol(buf, 0, &val) != 0)
 		return -EINVAL;
 
-	 printk("---write buf:%s",buf);
+	if (val != gktop_config.interval) {
+		spin_lock_irqsave(&ktop_lock, flags);
 
+		gktop_config.interval = val;
+		mod_timer(&ktop_timer, jiffies + msecs_to_jiffies(gktop_config.interval));
 
-#ifdef KTOP_MANUAL
-	if (val == 1) {
-		ktop_timer.expires = jiffies + msecs_to_jiffies(KTOP_INTERVAL);
-		add_timer(&ktop_timer);
-	} else if (val == 2) {
-		del_timer(&ktop_timer);
+		spin_unlock_irqrestore(&ktop_lock, flags);
 	}
-#endif
+
 	return nbytes;
 }
 
-static int ktop_open(struct inode *inode, struct file *file)
+static ssize_t ktop_threshold_write(struct file *file, const char __user * user_buf, size_t nbytes, loff_t * ppos)
 {
-	return single_open(file, ktop_show, NULL);
+	char buf[32];
+	size_t buf_size;
+	long val;
+	unsigned long flags;
+
+	if (!nbytes)
+		return -EINVAL;
+	buf_size = min(nbytes, (sizeof(buf) - 1));
+	if (copy_from_user(buf, user_buf, buf_size))
+		return -EFAULT;
+	buf[buf_size - 1] = '\0';
+	if (kstrtol(buf, 0, &val) != 0)
+		return -EINVAL;
+
+	//printk("---write threshold val:%ld\n", val);
+
+	spin_lock_irqsave(&ktop_lock, flags);
+	gktop_config.threshold = val;
+	spin_unlock_irqrestore(&ktop_lock, flags);
+
+	return nbytes;
 }
 
-static const struct proc_ops ktop_proc = {
-	.proc_open           = ktop_open,
-	.proc_read           = seq_read,
-	.proc_lseek         = seq_lseek,
-	.proc_write          = ktop_write,
-	.proc_release        = single_release,
+static ssize_t ktop_pid_write(struct file *file, const char __user * user_buf, size_t nbytes, loff_t * ppos)
+{
+	char buf[32];
+	size_t buf_size;
+	long val;
+	unsigned long flags;
+	struct list_head *k, *l, *m;
+	struct task_struct *p;
+
+	if (!nbytes)
+		return -EINVAL;
+	buf_size = min(nbytes, (sizeof(buf) - 1));
+	if (copy_from_user(buf, user_buf, buf_size))
+		return -EFAULT;
+	buf[buf_size - 1] = '\0';
+	if (kstrtol(buf, 0, &val) != 0)
+		return -EINVAL;
+
+	if (val != gktop_config.pid_focus) {
+		spin_lock_irqsave(&ktop_lock, flags);
+
+		list_for_each_safe(l, m, &ktop_list[cur_idx]) {
+			k = l - cur_idx;
+			p = container_of(k, struct task_struct, sched_info.ktop.list_entry[0]);
+			if (p->pid == gktop_config.pid_focus) {
+				p->sched_info.ktop.sum_exec[cur_idx] = 0;
+				printk("---del pid=%d,cur_idx=%d\n",p->pid,cur_idx);
+				list_del(l);
+				put_task_struct(p);
+			}
+		}
+
+		gktop_config.pid_focus = val;
+
+		spin_unlock_irqrestore(&ktop_lock, flags);
+	}
+
+	return nbytes;
+}
+
+static int ktop_interval_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ktop_interval_show, NULL);
+}
+
+static int ktop_threshold_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ktop_threshold_show, NULL);
+}
+
+static int ktop_pid_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ktop_pid_show, NULL);
+}
+
+static const struct proc_ops ktop_interval_proc = {
+	.proc_open = ktop_interval_open,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_write = ktop_interval_write,
+	.proc_release = single_release,
 };
 
+static const struct proc_ops ktop_threshold_proc = {
+	.proc_open = ktop_threshold_open,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_write = ktop_threshold_write,
+	.proc_release = single_release,
+};
+
+static const struct proc_ops ktop_pid_proc = {
+	.proc_open = ktop_pid_open,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_write = ktop_pid_write,
+	.proc_release = single_release,
+};
 
 static void netlink_rcv_msg_cpuload(struct sk_buff *skb)
 {
-    struct nlmsghdr *nlh = NULL;
-    char *umsg = NULL;
-    //char *kmsg = "hello users!!!";
-	 cpuload_cfg *puser_data=NULL;
-    if(skb->len >= nlmsg_total_size(0))
-    {
-        nlh = nlmsg_hdr(skb);
-        umsg = NLMSG_DATA(nlh);
-        if(umsg)
-        {
-            printk("---kernel recv from user: %s\n", umsg);
-			puser_data = (cpuload_cfg *)umsg;
-			printk("set interval=%d,threshold=%d,pid_front=%d\n",puser_data->interval,puser_data->threshold,puser_data->pid_focus);
+#if 0
+	struct nlmsghdr *nlh = NULL;
+	char *umsg = NULL;
+	//char *kmsg = "hello users!!!";
+	cpuload_cfg *puser_data = NULL;
+	if (skb->len >= nlmsg_total_size(0)) {
+		nlh = nlmsg_hdr(skb);
+		umsg = NLMSG_DATA(nlh);
+		if (umsg) {
+			printk("---kernel recv from user: %s\n", umsg);
+			puser_data = (cpuload_cfg *) umsg;
+			printk
+			    ("set interval=%d,threshold=%d,pid_front=%d\n",
+			     puser_data->interval, puser_data->threshold,
+			     puser_data->pid_focus);
 
-			ktop_interval_s = puser_data->interval;
-			ktop_threshold = puser_data->threshold;
+			gktop_config.interval = puser_data->interval;
+			gktop_config.threshold = puser_data->threshold;
 
-			mod_timer(&ktop_timer, jiffies + msecs_to_jiffies(MSEC_PER_SEC*ktop_interval_s));
+			mod_timer(&ktop_timer,
+				  jiffies +
+				  msecs_to_jiffies(MSEC_PER_SEC *
+						   gktop_config.interval));
 
-            //send_usrmsg_cpuload(kmsg, strlen(kmsg));
+			//send_usrmsg_cpuload(kmsg, strlen(kmsg));
 			//sprintf(kmsg1,"send count:%d",count++);
-            //send_usrmsg(kmsg1, strlen(kmsg1));
-        }
-    }
+			//send_usrmsg(kmsg1, strlen(kmsg1));
+		}
+	}
+#endif
 }
 
 
+struct netlink_kernel_cfg cfg_cpuload = {
+	.input = netlink_rcv_msg_cpuload,	/* set recv callback */
+};
 
-struct netlink_kernel_cfg cfg_cpuload = { 
-        .input  = netlink_rcv_msg_cpuload, /* set recv callback */
-};  
+struct proc_dir_entry *ktop_proc_dir = NULL;
 
 static int __init proc_ktop_init(void)
 {
 	int i;
-    printk("0------test_netlink_init\n");
-	for(i = 0 ; i < KTOP_I ; i++) {
+	struct proc_dir_entry *file_interval = NULL;
+	struct proc_dir_entry *file_threshold = NULL;
+	struct proc_dir_entry *file_pid = NULL;
+	printk("------proc ktop init\n");
+
+	for (i = 0; i < KTOP_I; i++) {
 		INIT_LIST_HEAD(&ktop_list[i]);
 	}
 
+	ktop_proc_dir = proc_mkdir(KTOP_DIR_NAME, NULL);
+	if (ktop_proc_dir == NULL) {
+		printk("%s proc create %s failed\n", __func__, KTOP_DIR_NAME);
+		return -EINVAL;
+	}
+
+	file_interval = proc_create(KTOP_INTERVAL_PROC_NAME, 0666, ktop_proc_dir, &ktop_interval_proc);
+	if (!file_interval) {
+		printk("%s proc_create failed!\n", __func__);
+		goto out0;
+	}
+
+	file_threshold = proc_create(KTOP_THRESHOLD_PROC_NAME, 0666, ktop_proc_dir, &ktop_threshold_proc);
+	if (!file_threshold) {
+		printk("%s proc_create failed!\n", __func__);
+		goto out1;
+	}
+
+	file_pid = proc_create(KTOP_PID_PROC_NAME, 0666, ktop_proc_dir, &ktop_pid_proc);
+	if (!file_pid) {
+		printk("%s proc_create failed!\n", __func__);
+		goto out2;
+	}
+
+#if 1
+	/* create netlink socket */
+	//nlsk_cpuload = (struct sock *) netlink_kernel_create(&init_net, NETLINK_KOBJECT_UEVENT,  &cfg_cpuload);
+	nlsk_cpuload = (struct sock *) netlink_kernel_create(&init_net, NETLINK_CPULOAD,  &cfg_cpuload);
+	if (nlsk_cpuload == NULL) {
+		printk("netlink_kernel_create error !\n");
+		return -1;
+	}
+	printk("------test_netlink_init\n");
+#endif
+
 #ifndef KTOP_MANUAL
-	ktop_timer.expires = jiffies + msecs_to_jiffies(MSEC_PER_SEC*ktop_interval_s);
+	ktop_timer.expires = jiffies + msecs_to_jiffies(gktop_config.interval);
 	add_timer(&ktop_timer);
 #endif
 
-	proc_create("ktop", 0666, NULL, &ktop_proc);
-#if 1
-    /* create netlink socket */
-    nlsk_cpuload = (struct sock *)netlink_kernel_create(&init_net, NETLINK_CPULOAD, &cfg_cpuload);
-    if(nlsk_cpuload == NULL)
-    {   
-        printk("netlink_kernel_create error !\n");
-        return -1; 
-    }   
-    printk("------test_netlink_init\n");
+	return 0;
 
-#endif
-return 0;
+out2:
+	remove_proc_entry(KTOP_THRESHOLD_PROC_NAME, ktop_proc_dir);
+out1:
+	remove_proc_entry(KTOP_INTERVAL_PROC_NAME, ktop_proc_dir);
+out0:
+	remove_proc_entry(KTOP_DIR_NAME, NULL);
+
+	return -ENOMEM;
 }
 
 fs_initcall(proc_ktop_init);
 #if 0
 void test_netlink_exit(void)
 {
-    if (nlsk_cpuload){
-        netlink_kernel_release(nlsk_cpuload); /* release ..*/
-        nlsk_cpuload = NULL;
-    }   
-    printk("test_netlink_exit!\n");
+	if (nlsk_cpuload) {
+		netlink_kernel_release(nlsk_cpuload);	/* release .. */
+		nlsk_cpuload = NULL;
+	}
+	printk("test_netlink_exit!\n");
+
+	remove_proc_entry(KTOP_INTERVAL_PROC_NAME, ktop_proc_dir);
+	remove_proc_entry(KTOP_THRESHOLD_PROC_NAME, ktop_proc_dir);
+	remove_proc_entry(KTOP_PID_PROC_NAME, ktop_proc_dir);
+
+	remove_proc_entry(KTOP_DIR_NAME, NULL);
 }
 
 #endif
