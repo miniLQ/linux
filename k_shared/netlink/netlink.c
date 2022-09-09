@@ -4,9 +4,8 @@
 #include <net/sock.h>
 #include <linux/netlink.h>
 
-#define NETLINK_CPULOAD  30
+#define NETLINK_CPULOAD 30 
 #define MSG_LEN          256
-#define USER_PORT        100
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Jason");
@@ -14,6 +13,8 @@ MODULE_DESCRIPTION("netlink");
 
 struct sock *nlsk = NULL;
 extern struct net init_net;
+
+__u32 user_pid=0;
 
 int send_usrmsg(char *pbuf, uint16_t len)
 {
@@ -41,8 +42,10 @@ int send_usrmsg(char *pbuf, uint16_t len)
 
     /* 拷贝数据发送 */
     memcpy(nlmsg_data(nlh), pbuf, len);
-    ret = netlink_unicast(nlsk, nl_skb, USER_PORT, MSG_DONTWAIT);
-    nlmsg_free(nl_skb);
+   // ret = netlink_unicast(nlsk, nl_skb, user_pid,  MSG_DONTWAIT);
+	netlink_broadcast(nlsk, nl_skb, 0, 1,  MSG_DONTWAIT);
+//	ret = netlink_unicast(nlsk, nl_skb, 0,  MSG_DONTWAIT);
+//    nlmsg_free(nl_skb);
 
     return ret;
 }
@@ -59,14 +62,15 @@ static void netlink_rcv_msg(struct sk_buff *skb)
         umsg = NLMSG_DATA(nlh);
         if(umsg)
         {
-            printk("---kernel recv from user: %s\n", umsg);
-            send_usrmsg(kmsg, strlen(kmsg));
+            printk("---kernel recv from user: %s,and userid=%d\n\n", umsg,nlh->nlmsg_pid);
+			user_pid = nlh->nlmsg_pid;
+            //send_usrmsg(kmsg, strlen(kmsg));
 			sprintf(kmsg1,"send count:%d",count++);
             send_usrmsg(kmsg1, strlen(kmsg1));
-			sprintf(kmsg1,"send count:%d",count++);
-            send_usrmsg(kmsg1, strlen(kmsg1));
-			sprintf(kmsg1,"send count:%d",count++);
-            send_usrmsg(kmsg1, strlen(kmsg1));
+//			sprintf(kmsg1,"send count:%d",count++);
+ //           send_usrmsg(kmsg1, strlen(kmsg1));
+//			sprintf(kmsg1,"send count:%d",count++);
+ //           send_usrmsg(kmsg1, strlen(kmsg1));
 
         }
     }
@@ -76,6 +80,17 @@ struct netlink_kernel_cfg cfg = {
         .input  = netlink_rcv_msg, /* set recv callback */
 };  
 
+static void ktop_timer_func(struct timer_list *timer)
+{
+	unsigned long flags;
+	char kmsg1[256];
+
+	sprintf(kmsg1,"ktop timer count:%d",count++);
+	send_usrmsg(kmsg1, strlen(kmsg1));
+	mod_timer(timer, jiffies + msecs_to_jiffies(3000));
+}
+
+DEFINE_TIMER(ktop_timer, ktop_timer_func);
 int test_netlink_init(void)
 {
     /* create netlink socket */
@@ -87,6 +102,10 @@ int test_netlink_init(void)
     }   
     printk("test_netlink_init\n");
     
+#ifndef KTOP_MANUAL
+	ktop_timer.expires = jiffies + msecs_to_jiffies(10000);
+	add_timer(&ktop_timer);
+#endif
     return 0;
 }
 

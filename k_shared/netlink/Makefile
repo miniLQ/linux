@@ -1,4 +1,4 @@
-KERNEL_DIR ?= ~/work/my_linux
+KERNEL_DIR ?= ~/work/my-linux
 obj-m := netlink.o
 CFLAG := -Wall -Wno-error 
 modules:

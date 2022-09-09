@@ -1,4 +1,4 @@
-KERNEL_DIR ?= ~/work/my_linux
+KERNEL_DIR ?= ~/work/my-linux
 obj-m := proc_test.o
 CFLAG := -Wall -Wno-error 
 modules:

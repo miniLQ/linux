@@ -30,37 +30,65 @@ static int count=0;
 
 struct data{
 	int val;
-	struct list_head link;
+	int count;
+	struct list_head node; 
 };
 struct list_head ptest;
 
 void link_test(struct list_head * link)
 {
 	struct list_head *l,*o, *k;
+	struct list_head *l2,*o2, *k2;
+	struct list_head *l3,*o3, *k3;
 	struct data *p,*q;
+	struct data *p2,*q2;
+	struct data *p3,*q3;
 	int i=0;
 
 	for (i=0; i < 10; i++)
 	{
 		struct data *ptmp = (struct data*)kmalloc(sizeof(struct data), GFP_KERNEL);
-		ptmp->val = i+1;
+		ptmp->val = (i+1)%3;
+		ptmp->count = 1;
 
-		list_add(&ptmp->link,link);
+		list_add(&ptmp->node,link);
 	}
+		printk("sizeof(list_head)=%d\n",sizeof(struct list_head));
+	list_for_each(l, link) {
+		printk("l=0x%x,link=0x%x\n",l,link);
+		p = container_of(l, struct data, node);
+	//	printk("---l0=0x%x p->val=%d,p->count=%d\n",l, p->val,p->count);
+		list_for_each_safe(l2,o2,l) {
+			if (l2 == link) {
+				break;
+			}
+			p2= container_of(l2, struct data, node);
+	//		printk("---l2=0x%x,p2->val=%d,node=0x%x\n",l2,p2->val,p2);
+			if (p->val == p2->val) {
+				p->count += p2->count;
+				list_del(l2);
+			}
+		}
+#if 0
+		printk("==============================0===============================\n");
+		list_for_each_safe(l3, o3, link) {
+			p3 = container_of(l3, struct data, node);
+			printk("---------after filter,l3=0x%x p3->val=%d,p3->count=%d, p3=0x%x\n",l3, p3->val,p3->count,p3);
+		}
+		printk("==============================1===============================\n");
+#endif
+//		printk("---l1 p->val=%d,p->count=%d\n",p->val,p->count);
+	}
+#if 1
 	list_for_each_safe(l, o, link) {
-		k = o - 1;
-		printk("---addr l=0x%x\n",l);
-		printk("---addr o=0x%x\n",o);
-		printk("---addr k=0x%x\n",k);
-
-		p = container_of(l, struct data, link);
-		printk("---l val=%d\n",p->val);
-		q = container_of(k, struct data, link);
-		printk("---k val=%d\n\n",q->val);
+		p = container_of(l, struct data, node);
+		printk("---------at last after filter, p->val=%d,p->count=%d\n",p->val,p->count);
 	}
+#endif
 }
 void link_free(struct list_head *link)
 {
+#if 0
 	struct list_head *l,*o;
 	struct data *p;
 
@@ -70,12 +98,13 @@ void link_free(struct list_head *link)
 		kfree(p);
 	}
 
+#endif	
 }
 static int ktop_show(struct seq_file *m, void *v)
 {
 		seq_printf(m, "count=%d\n",count++);
 		link_test(&ptest);
-		link_free(&ptest);
+//		link_free(&ptest);
 #if 0
 	struct task_struct *p, *r, *q;
 	struct list_head report_list;
