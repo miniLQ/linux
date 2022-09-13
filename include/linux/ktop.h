@@ -2,7 +2,7 @@
 #define _LINUX_KTOP_H
 
 /* debug switch */
-#define KTOP_DEBUG_PRINT
+//#define KTOP_DEBUG_PRINT
 //#define KTOP_MANUAL
 
 #define KTOP_I 1

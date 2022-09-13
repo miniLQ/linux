@@ -18,7 +18,7 @@
 #define NETLINK_CPULOAD  30
 #define MSG_LEN          256
 
-#define KTOP_DEBUG_PRINT
+//#define KTOP_DEBUG_PRINT
 //#define KTOP_MANUAL
 
 #define KTOP_INTERVAL (1*MSEC_PER_SEC)
@@ -60,12 +60,29 @@ extern struct net init_net;
 char report_buf[1024];
 
 static int ktop_report(void);
+
+struct device *cpuload_dev = NULL;
+char * s_index[2];
+
+static ssize_t _send_cpuload( struct device *dev, struct device_attribute *attr, const char *buf, size_t count )
+{
+    s_index[0] = buf;
+    s_index[1] = NULL;
+    kobject_uevent_env(&dev->kobj, KOBJ_CHANGE, s_index);
+
+    return 0;
+}
 int send_usrmsg_cpuload(char *pbuf, uint16_t len)
 {
+#if 1
+	_send_cpuload(cpuload_dev,NULL, pbuf, len);
+
+	return 0;
+#else
+	int ret;
 	struct sk_buff *nl_skb;
 	struct nlmsghdr *nlh;
 
-	int ret;
 
 	/* 创建sk_buff 空间 */
 	nl_skb = nlmsg_new(len, GFP_ATOMIC);
@@ -91,6 +108,7 @@ int send_usrmsg_cpuload(char *pbuf, uint16_t len)
 	//nlmsg_free(nl_skb);
 
 	return ret;
+#endif
 }
 
 void __always_inline ktop_add(struct task_struct *p)
@@ -292,15 +310,12 @@ static int ktop_report(void)
 			}
 			u32 sum_exec_ = (p->sched_info.ktop.sum_exec[KTOP_REPORT - 1]  *100) / (u32) ((delta*nr_cpu_ids) >> 20);
 			if(p->tgid != gktop_config.pid_focus && sum_exec_ > gktop_config.threshold) {
-				sprintf(report_buf,"%-9d %-16s %-11u %-9d %-16s\n",
-									p->pid, 
-									p->comm, 
-									sum_exec_,
-									p->tgid,
-									(p->group_leader != p) ? (q ? comm : "EXITED") : p->comm);
+				sprintf(report_buf,"CPULOAD=%-9d %-16s %-11u\n",
+									p->tgid, 
+									(p->group_leader != p) ? (q ? comm : "EXITED") : p->comm,
+									sum_exec_);
 
 				send_usrmsg_cpuload(report_buf, strlen(report_buf));
-				printk("---%s\n",report_buf);
 			}
 			list_del(l);
 			put_task_struct(p);
@@ -506,9 +521,16 @@ struct netlink_kernel_cfg cfg_cpuload = {
 
 struct proc_dir_entry *ktop_proc_dir = NULL;
 
+static struct class cpuload_event_class = {
+        .name =         "cpuload_event",
+        .owner =        THIS_MODULE,
+};
+
 static int __init proc_ktop_init(void)
 {
 	int i;
+	int ret = -1;
+
 	struct proc_dir_entry *file_interval = NULL;
 	struct proc_dir_entry *file_threshold = NULL;
 	struct proc_dir_entry *file_pid = NULL;
@@ -542,7 +564,7 @@ static int __init proc_ktop_init(void)
 		goto out2;
 	}
 
-#if 1
+#if 0
 	/* create netlink socket */
 	//nlsk_cpuload = (struct sock *) netlink_kernel_create(&init_net, NETLINK_KOBJECT_UEVENT,  &cfg_cpuload);
 	nlsk_cpuload = (struct sock *) netlink_kernel_create(&init_net, NETLINK_CPULOAD,  &cfg_cpuload);
@@ -553,6 +575,17 @@ static int __init proc_ktop_init(void)
 	printk("------test_netlink_init\n");
 #endif
 
+    ret = class_register(&cpuload_event_class);
+    if( ret < 0 ){
+        printk(KERN_ERR "cpuload_event: class_register fail\n");
+        return ret;
+    }
+
+    cpuload_dev = device_create(&cpuload_event_class, NULL, MKDEV(0, 0), NULL, "cpuload_event");
+    if( cpuload_dev == NULL){
+        printk(KERN_ERR "cpuload_event:device_create fail\r\n");
+		goto out3;
+    }
 #ifndef KTOP_MANUAL
 	ktop_timer.expires = jiffies + msecs_to_jiffies(gktop_config.interval);
 	add_timer(&ktop_timer);
@@ -560,6 +593,8 @@ static int __init proc_ktop_init(void)
 
 	return 0;
 
+out3:
+	class_unregister(&cpuload_event_class);
 out2:
 	remove_proc_entry(KTOP_THRESHOLD_PROC_NAME, ktop_proc_dir);
 out1:
