@@ -15,25 +15,21 @@
 #include <net/sock.h>
 #include <linux/netlink.h>
 
-#define NETLINK_CPULOAD  30
 #define MSG_LEN          256
 
-//#define KTOP_DEBUG_PRINT
-//#define KTOP_MANUAL
-
 #define KTOP_INTERVAL (1*MSEC_PER_SEC)
-
 
 #define KTOP_DIR_NAME             "ktop"
 #define KTOP_INTERVAL_PROC_NAME   "interval"
 #define KTOP_THRESHOLD_PROC_NAME  "threshold"
 #define KTOP_PID_PROC_NAME        "pid_focus"
 
+
 typedef struct _cpuload_cfg {
-	int interval;
-	int threshold;
-	int pid_focus;
-	char reserve[20];
+       int interval;
+       int threshold;
+       int pid_focus;
+       char reserve[20];
 } cpuload_cfg;
 
 cpuload_cfg  gktop_config = {
@@ -72,43 +68,9 @@ static ssize_t _send_cpuload( struct device *dev, struct device_attribute *attr,
 
     return 0;
 }
-int send_usrmsg_cpuload(char *pbuf, uint16_t len)
+static int send_usrmsg_cpuload(char *pbuf, uint16_t len)
 {
-#if 1
-	_send_cpuload(cpuload_dev,NULL, pbuf, len);
-
-	return 0;
-#else
-	int ret;
-	struct sk_buff *nl_skb;
-	struct nlmsghdr *nlh;
-
-
-	/* 创建sk_buff 空间 */
-	nl_skb = nlmsg_new(len, GFP_ATOMIC);
-	if (!nl_skb) {
-		printk("netlink alloc failure\n");
-		return -1;
-	}
-
-	/* 设置netlink消息头部 */
-	nlh = nlmsg_put(nl_skb, 0, 0, NETLINK_CPULOAD, len, 0);
-	if (nlh == NULL) {
-		printk("nlmsg_put failaure \n");
-		nlmsg_free(nl_skb);
-		return -1;
-	}
-
-	/* 拷贝数据发送 */
-	memcpy(nlmsg_data(nlh), pbuf, len);
-//	ret = netlink_unicast(nlsk_cpuload, nl_skb, USER_PORT, MSG_DONTWAIT);
-	ret = netlink_broadcast(nlsk_cpuload, nl_skb, 0, 1,  MSG_DONTWAIT);
-
-
-	//nlmsg_free(nl_skb);
-
-	return ret;
-#endif
+	return 	_send_cpuload(cpuload_dev,NULL, pbuf, len);
 }
 
 void __always_inline ktop_add(struct task_struct *p)
@@ -176,13 +138,14 @@ static int ktop_report(void)
 	struct task_struct *r2;
 	struct list_head report_list;
 	struct list_head *k, *l, *n, *o;
-	struct list_head *k2, *l2, *n2, *o2;
+	struct list_head *k2, *n2, *o2;
 	bool report;
 	int h, i, j = 0, start_idx;
 	u32 run_tasks = 0;
 	u64 now;
 	u64 delta;
 	unsigned long flags;
+	u32 sum_exec_=0;
 	INIT_LIST_HEAD(&report_list);
 
 	spin_lock_irqsave(&ktop_lock, flags);
@@ -308,8 +271,8 @@ static int ktop_report(void)
 					get_task_comm(comm, q);
 				rcu_read_unlock();
 			}
-			u32 sum_exec_ = (p->sched_info.ktop.sum_exec[KTOP_REPORT - 1]  *100) / (u32) ((delta*nr_cpu_ids) >> 20);
-			if(p->tgid != gktop_config.pid_focus && sum_exec_ > gktop_config.threshold) {
+			sum_exec_ = (p->sched_info.ktop.sum_exec[KTOP_REPORT - 1]  *100) / (u32) ((delta*nr_cpu_ids) >> 20);
+			if(sum_exec_ > ((p->tgid != gktop_config.pid_focus)?gktop_config.threshold:gktop_config.threshold<<2)) {
 				sprintf(report_buf,"CPULOAD=%-9d %-16s %-11u",
 									p->tgid, 
 									(p->group_leader != p) ? (q ? comm : "EXITED") : p->comm,
@@ -342,8 +305,6 @@ static int ktop_threshold_show(struct seq_file *m, void *v)
 static int ktop_pid_show(struct seq_file *m, void *v)
 {
 	printk("%d\n", gktop_config.pid_focus);
-
-	printk("cput num:%d\n",nr_cpu_ids);
 
 	return 0;
 }
@@ -427,7 +388,7 @@ static ssize_t ktop_pid_write(struct file *file, const char __user * user_buf, s
 			p = container_of(k, struct task_struct, sched_info.ktop.list_entry[0]);
 			if (p->pid == gktop_config.pid_focus) {
 				p->sched_info.ktop.sum_exec[cur_idx] = 0;
-				printk("---del pid=%d,cur_idx=%d\n",p->pid,cur_idx);
+				//printk("---del pid=%d,cur_idx=%d\n",p->pid,cur_idx);
 				list_del(l);
 				put_task_struct(p);
 			}
@@ -480,45 +441,6 @@ static const struct proc_ops ktop_pid_proc = {
 	.proc_release = single_release,
 };
 
-static void netlink_rcv_msg_cpuload(struct sk_buff *skb)
-{
-#if 0
-	struct nlmsghdr *nlh = NULL;
-	char *umsg = NULL;
-	//char *kmsg = "hello users!!!";
-	cpuload_cfg *puser_data = NULL;
-	if (skb->len >= nlmsg_total_size(0)) {
-		nlh = nlmsg_hdr(skb);
-		umsg = NLMSG_DATA(nlh);
-		if (umsg) {
-			printk("---kernel recv from user: %s\n", umsg);
-			puser_data = (cpuload_cfg *) umsg;
-			printk
-			    ("set interval=%d,threshold=%d,pid_front=%d\n",
-			     puser_data->interval, puser_data->threshold,
-			     puser_data->pid_focus);
-
-			gktop_config.interval = puser_data->interval;
-			gktop_config.threshold = puser_data->threshold;
-
-			mod_timer(&ktop_timer,
-				  jiffies +
-				  msecs_to_jiffies(MSEC_PER_SEC *
-						   gktop_config.interval));
-
-			//send_usrmsg_cpuload(kmsg, strlen(kmsg));
-			//sprintf(kmsg1,"send count:%d",count++);
-			//send_usrmsg(kmsg1, strlen(kmsg1));
-		}
-	}
-#endif
-}
-
-
-struct netlink_kernel_cfg cfg_cpuload = {
-	.input = netlink_rcv_msg_cpuload,	/* set recv callback */
-};
-
 struct proc_dir_entry *ktop_proc_dir = NULL;
 
 static struct class cpuload_event_class = {
@@ -534,7 +456,8 @@ static int __init proc_ktop_init(void)
 	struct proc_dir_entry *file_interval = NULL;
 	struct proc_dir_entry *file_threshold = NULL;
 	struct proc_dir_entry *file_pid = NULL;
-	printk("------proc ktop init\n");
+
+	printk("------proc ktop init.\n");
 
 	for (i = 0; i < KTOP_I; i++) {
 		INIT_LIST_HEAD(&ktop_list[i]);
@@ -564,17 +487,6 @@ static int __init proc_ktop_init(void)
 		goto out2;
 	}
 
-#if 0
-	/* create netlink socket */
-	//nlsk_cpuload = (struct sock *) netlink_kernel_create(&init_net, NETLINK_KOBJECT_UEVENT,  &cfg_cpuload);
-	nlsk_cpuload = (struct sock *) netlink_kernel_create(&init_net, NETLINK_CPULOAD,  &cfg_cpuload);
-	if (nlsk_cpuload == NULL) {
-		printk("netlink_kernel_create error !\n");
-		return -1;
-	}
-	printk("------test_netlink_init\n");
-#endif
-
     ret = class_register(&cpuload_event_class);
     if( ret < 0 ){
         printk(KERN_ERR "cpuload_event: class_register fail\n");
@@ -586,10 +498,9 @@ static int __init proc_ktop_init(void)
         printk(KERN_ERR "cpuload_event:device_create fail\r\n");
 		goto out3;
     }
-#ifndef KTOP_MANUAL
+
 	ktop_timer.expires = jiffies + msecs_to_jiffies(gktop_config.interval);
 	add_timer(&ktop_timer);
-#endif
 
 	return 0;
 
@@ -607,7 +518,7 @@ out0:
 
 fs_initcall(proc_ktop_init);
 #if 0
-void test_netlink_exit(void)
+static void test_netlink_exit(void)
 {
 	if (nlsk_cpuload) {
 		netlink_kernel_release(nlsk_cpuload);	/* release .. */
@@ -623,3 +534,6 @@ void test_netlink_exit(void)
 }
 
 #endif
+MODULE_AUTHOR("leon.yu <leon.yu@nio.com>");
+MODULE_DESCRIPTION("cpuload_event");
+MODULE_LICENSE("GPL v2");

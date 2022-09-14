@@ -32,7 +32,7 @@ int main()
     addr.nl_groups = 0xffffffff;
 
 	
-    s = socket(PF_NETLINK, SOCK_DGRAM, 15);
+    s = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_KOBJECT_UEVENT);
     if(s < 0)
         return 0;
 
