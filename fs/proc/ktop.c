@@ -310,7 +310,7 @@ static int ktop_report(void)
 			}
 			u32 sum_exec_ = (p->sched_info.ktop.sum_exec[KTOP_REPORT - 1]  *100) / (u32) ((delta*nr_cpu_ids) >> 20);
 			if(p->tgid != gktop_config.pid_focus && sum_exec_ > gktop_config.threshold) {
-				sprintf(report_buf,"CPULOAD=%-9d %-16s %-11u\n",
+				sprintf(report_buf,"CPULOAD=%-9d %-16s %-11u",
 									p->tgid, 
 									(p->group_leader != p) ? (q ? comm : "EXITED") : p->comm,
 									sum_exec_);
