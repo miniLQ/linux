@@ -22,20 +22,20 @@
 #define KTOP_DIR_NAME             "ktop"
 #define KTOP_INTERVAL_PROC_NAME   "interval"
 #define KTOP_THRESHOLD_PROC_NAME  "threshold"
-#define KTOP_PID_PROC_NAME        "pid_focus"
+#define KTOP_PID_PROC_NAME        "pid_foreground"
 
 
 typedef struct _cpuload_cfg {
        int interval;
        int threshold;
-       int pid_focus;
+       int pid_foreground;
        char reserve[20];
 } cpuload_cfg;
 
 cpuload_cfg  gktop_config = {
 	.interval = MSEC_PER_SEC * 3,
 	.threshold = 10,
-	.pid_focus = 0,
+	.pid_foreground = 0,
 };
 
 static u8 cur_idx=0;
@@ -272,7 +272,7 @@ static int ktop_report(void)
 				rcu_read_unlock();
 			}
 			sum_exec_ = (p->sched_info.ktop.sum_exec[KTOP_REPORT - 1]  *100) / (u32) ((delta*nr_cpu_ids) >> 20);
-			if(sum_exec_ > ((p->tgid != gktop_config.pid_focus)?gktop_config.threshold:gktop_config.threshold<<2)) {
+			if(sum_exec_ > ((p->tgid != gktop_config.pid_foreground)?gktop_config.threshold:gktop_config.threshold<<2)) {
 				sprintf(report_buf,"CPULOAD=%-9d %-16s %-11u",
 									p->tgid, 
 									(p->group_leader != p) ? (q ? comm : "EXITED") : p->comm,
@@ -304,7 +304,7 @@ static int ktop_threshold_show(struct seq_file *m, void *v)
 
 static int ktop_pid_show(struct seq_file *m, void *v)
 {
-	printk("%d\n", gktop_config.pid_focus);
+	printk("%d\n", gktop_config.pid_foreground);
 
 	return 0;
 }
@@ -380,13 +380,13 @@ static ssize_t ktop_pid_write(struct file *file, const char __user * user_buf, s
 	if (kstrtol(buf, 0, &val) != 0)
 		return -EINVAL;
 
-	if (val != gktop_config.pid_focus) {
+	if (val != gktop_config.pid_foreground) {
 		spin_lock_irqsave(&ktop_lock, flags);
 
 		list_for_each_safe(l, m, &ktop_list[cur_idx]) {
 			k = l - cur_idx;
 			p = container_of(k, struct task_struct, sched_info.ktop.list_entry[0]);
-			if (p->pid == gktop_config.pid_focus) {
+			if (p->pid == gktop_config.pid_foreground) {
 				p->sched_info.ktop.sum_exec[cur_idx] = 0;
 				//printk("---del pid=%d,cur_idx=%d\n",p->pid,cur_idx);
 				list_del(l);
@@ -394,7 +394,7 @@ static ssize_t ktop_pid_write(struct file *file, const char __user * user_buf, s
 			}
 		}
 
-		gktop_config.pid_focus = val;
+		gktop_config.pid_foreground = val;
 
 		spin_unlock_irqrestore(&ktop_lock, flags);
 	}
