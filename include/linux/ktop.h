@@ -19,7 +19,7 @@ extern struct timer_list ktop_timer;
 
 
 #ifdef KTOP_DEBUG_PRINT
-#define ktop_pr_dbg(fmt, ...) do {pr_err("ktop: " fmt, ##__VA_ARGS__);} while (0)
+#define ktop_pr_dbg(fmt, ...) do {pr_err("ktop: " fmt, ##__VA_ARGS__); } while (0)
 #else /* KTOP_DEBUG_PRINT */
 #define ktop_pr_dbg(fmt, ...) do {} while (0)
 #endif /* KTOP_DEBUG_PRINT */
