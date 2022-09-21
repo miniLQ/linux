@@ -33,8 +33,51 @@ struct data{
 	int count;
 	struct list_head node; 
 };
+struct nio_data{
+	struct  data; 
+	int val;
+	int count;
+	struct list_head node
+};
 struct list_head ptest;
+struct list_head p_nio_test;
+void link_test2(struct list_head * link)
+{
+	struct list_head *l,*o, *k;
+	struct list_head *l2,*o2, *k2;
+	struct list_head *l3,*o3, *k3;
+	struct data *p,*q;
+	struct data *p2,*q2;
+	struct data *p3,*q3;
+	struct nio_data *a3,*b3;
+	int i=0;
 
+	for (i=0; i < 10; i++)
+	{
+		struct data *ptmp = (struct data*)kmalloc(sizeof(struct nio_data), GFP_KERNEL);
+		ptmp->val = i;// (i+1)%3;
+		ptmp->count = 1;
+
+		list_add(&ptmp->node,link);
+
+		struct nio_data *ptmp2 = (struct nio_data*)ptmp;
+		ptmp2->val = i+10;
+		printk("---data:p=0x%x p->val=%d\n",ptmp,ptmp->val);
+		printk("---nio_data:p=0x%x p->val=%d\n",ptmp2,ptmp2->val);
+	}
+	printk("=================================================\n\n\n");
+		printk("sizeof(list_head)=%d\n",sizeof(struct list_head));
+	list_for_each(l, link) {
+		//printk("l=0x%x,link=0x%x\n",l,link);
+		p = container_of(l, struct data, node);
+		printk("---l0=0x%x p->val=%d,p->count=%d\n",l, p->val,p->count);
+
+		struct nio_data *ptmp2 = (struct nio_data*)p;
+		//ptmp2 = container_of(&p, struct nio_data, task);
+		//printk("---nio_data:p=0x%x p->val=%d,p->task=0x%x\n",a3,a3->val,a3->task);
+		printk("---nio_data:p=0x%x p->val=%d\n",ptmp2,ptmp2->val);
+	}
+}
 void link_test(struct list_head * link)
 {
 	struct list_head *l,*o, *k;
@@ -52,6 +95,7 @@ void link_test(struct list_head * link)
 		ptmp->count = 1;
 
 		list_add(&ptmp->node,link);
+
 	}
 		printk("sizeof(list_head)=%d\n",sizeof(struct list_head));
 	list_for_each(l, link) {
@@ -86,6 +130,7 @@ void link_test(struct list_head * link)
 	}
 #endif
 }
+
 void link_free(struct list_head *link)
 {
 #if 0
@@ -103,7 +148,8 @@ void link_free(struct list_head *link)
 static int ktop_show(struct seq_file *m, void *v)
 {
 		seq_printf(m, "count=%d\n",count++);
-		link_test(&ptest);
+		//link_test(&ptest);
+		link_test2(&ptest);
 //		link_free(&ptest);
 #if 0
 	struct task_struct *p, *r, *q;
