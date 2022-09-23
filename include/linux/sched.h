@@ -310,8 +310,6 @@ struct sched_info {
 	/* When were we last queued to run? */
 	unsigned long long		last_queued;
 
-    struct ktop_info        ktop;
-
 #ifdef CONFIG_PROC_KTOP_DEBUG
     u64             ktop_d_sum_exec;
     struct list_head        ktop_d_list_entry;
