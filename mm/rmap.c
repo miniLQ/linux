@@ -344,7 +344,8 @@ int anon_vma_fork(struct vm_area_struct *vma, struct vm_area_struct *pvma)
 	int error;
 
 	/* Don't bother if the parent process has no anon_vma here. */
-	if (!pvma->anon_vma)  ///若父进程没有av，就不需要绑定了
+	///若父进程没有av，就不需要绑定了
+	if (!pvma->anon_vma)
 		return 0;
 
 	/* Drop inherited anon_vma, we'll reuse existing or allocate new. */
@@ -360,14 +361,17 @@ int anon_vma_fork(struct vm_area_struct *vma, struct vm_area_struct *pvma)
 		return error;
 
 	/* An existing anon_vma has been reused, all done then. */
-	if (vma->anon_vma)  ///若子进程已经创建有anon_vma，说明绑定已完成
+	///若子进程已经创建有anon_vma，说明绑定已完成
+	if (vma->anon_vma)
 		return 0;
 
 	/* Then add our own anon_vma. */ 
-	anon_vma = anon_vma_alloc();              ///分配子进程的av
+	///分配子进程的av
+	anon_vma = anon_vma_alloc();
 	if (!anon_vma)
 		goto out_error;
-	avc = anon_vma_chain_alloc(GFP_KERNEL);  ///分配子进程的avc
+	///分配子进程的avc
+	avc = anon_vma_chain_alloc(GFP_KERNEL);
 	if (!avc)
 		goto out_error_free_anon_vma;
 
@@ -375,18 +379,22 @@ int anon_vma_fork(struct vm_area_struct *vma, struct vm_area_struct *pvma)
 	 * The root anon_vma's rwsem is the lock actually used when we
 	 * lock any of the anon_vmas in this anon_vma tree.
 	 */
-	anon_vma->root = pvma->anon_vma->root;   ///子进程av的root，指向父进程av的root
-	anon_vma->parent = pvma->anon_vma;       ///子进程av的parent，指向父进程的av
+	///子进程av的root，指向父进程av的root
+	anon_vma->root = pvma->anon_vma->root;
+	///子进程av的parent，指向父进程的av
+	anon_vma->parent = pvma->anon_vma;
 	/*
 	 * With refcounts, an anon_vma can stay around longer than the
 	 * process it belongs to. The root anon_vma needs to be pinned until
 	 * this anon_vma is freed, because the lock lives in the root.
 	 */
-	get_anon_vma(anon_vma->root);  ///增加父进程的anon_vma的_refcount
+	///增加父进程的anon_vma的_refcount
+	get_anon_vma(anon_vma->root);
 	/* Mark this anon_vma as the one where our new (COWed) pages go. */
 	vma->anon_vma = anon_vma;
 	anon_vma_lock_write(anon_vma);
-	anon_vma_chain_link(vma, avc, anon_vma);    ///将子进程的avc分别添加到自己的av的rb, 和vma的avc链表中
+	///将子进程的avc分别添加到自己的av的rb, 和vma的avc链表中
+	anon_vma_chain_link(vma, avc, anon_vma);
 	anon_vma->parent->degree++;
 	anon_vma_unlock_write(anon_vma);
 

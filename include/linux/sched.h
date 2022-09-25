@@ -747,6 +747,7 @@ struct task_struct {
 	 ///ARM64的SP_EL0用来存放当前进程的task_struct地址
 	struct thread_info		thread_info;
 #endif
+	///进程状态：就绪态和运行态都是TASK_RUNNING
 	unsigned int			__state;
 
 #ifdef CONFIG_PREEMPT_RT
@@ -760,6 +761,7 @@ struct task_struct {
 	 */
 	randomized_struct_fields_start
 
+	//指向进程的内核栈
 	void				*stack;
 	refcount_t			usage;
 	/* Per task flags (PF_*), defined further below: */
@@ -866,7 +868,12 @@ struct task_struct {
 #endif /* #ifdef CONFIG_TASKS_TRACE_RCU */
 
 	struct sched_info		sched_info;
-
+	/*
+	 * 系统中所有进程通过tasks组成一个链表;
+	 * 链表头是init_task, 即0号进程
+	 * next_task(): 遍历下一个进程
+	 * next_thread(): 遍历线程组的下一个线程
+	*/
 	struct list_head		tasks;
 #ifdef CONFIG_SMP
 	struct plist_node		pushable_tasks;
@@ -959,6 +966,12 @@ struct task_struct {
 
 	struct restart_block		restart_block;
 
+	/* 
+	 * pid:线程id,每个线程都不同
+	 * tgid:线程组id, 同一个进程中所有线程相同
+	 * getpid():返回TGID
+	 * gettid():返回PID
+	 */
 	pid_t				pid;
 	pid_t				tgid;
 

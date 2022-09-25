@@ -247,17 +247,23 @@ int copy_thread(unsigned long clone_flags, unsigned long stack_start,
 	thread->cpu_domain = get_domain();
 #endif
 
+	///处理子进程是用户进程的情况
 	if (likely(!(p->flags & (PF_KTHREAD | PF_IO_WORKER)))) {
 		*childregs = *current_pt_regs();
 		childregs->ARM_r0 = 0;
 		if (stack_start)
 			childregs->ARM_sp = stack_start;
 	} else {
+		//子进程是内核线程
 		memset(childregs, 0, sizeof(struct pt_regs));
 		thread->cpu_context.r4 = stk_sz;
 		thread->cpu_context.r5 = stack_start;
 		childregs->ARM_cpsr = SVC_MODE;
 	}
+	/*
+	 * 设置子进程的硬件上下文成员pc,sp
+	 * 子进程第一次返回，会跳转到ret_from_fork
+	 */
 	thread->cpu_context.pc = (unsigned long)ret_from_fork;
 	thread->cpu_context.sp = (unsigned long)childregs;
 

@@ -751,17 +751,22 @@ NOKPROBE(cpu_switch_to)
 /*
  * This is how we return from a fork.
  */
-///fork一个子进程，被调度后，从这里开始执行
+///fork新生成的子进程，被调度后，从这里开始执行
 SYM_CODE_START(ret_from_fork)
 	bl	schedule_tail
 	///对于内核线程，x19指向内核线程的回调函数
 	cbz	x19, 1f				// not a kernel thread
 	mov	x0, x20
+
+	///直接从x19开始执行
 	blr	x19
 1:	get_current_task tsk
 	mov	x0, sp
 	bl	asm_exit_to_user_mode
-	b	ret_to_user ///用户子进程的返回
+
+	///用户子进程,返回用户空间，执行fork()或clone()系统调用的下一条指令
+	///父进程通常使用svc指令陷入内核空间，级用户进程返回到用户空间，执行svc的下一条指令
+	b	ret_to_user
 
 SYM_CODE_END(ret_from_fork)
 NOKPROBE(ret_from_fork)

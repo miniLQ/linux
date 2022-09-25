@@ -960,7 +960,8 @@ copy_present_pte(struct vm_area_struct *dst_vma, struct vm_area_struct *src_vma,
 	 * If it's a COW mapping, write protect it both
 	 * in the parent and the child
 	 */
-	if (is_cow_mapping(vm_flags) && pte_write(pte)) {  ///如果是COW页，父进程，子进程页面都设置为只读
+	///如果是COW页，父进程，子进程页面都设置为只读
+	if (is_cow_mapping(vm_flags) && pte_write(pte)) {
 		ptep_set_wrprotect(src_mm, addr, src_pte);
 		pte = pte_wrprotect(pte);
 	}
@@ -976,6 +977,7 @@ copy_present_pte(struct vm_area_struct *dst_vma, struct vm_area_struct *src_vma,
 	if (!userfaultfd_wp(dst_vma))
 		pte = pte_clear_uffd_wp(pte);
 
+	///把PTE内容设置到子进程对应的dst_pte中
 	set_pte_at(dst_vma->vm_mm, addr, dst_pte, pte);
 	return 0;
 }
@@ -1045,6 +1047,7 @@ again:
 			progress++;
 			continue;
 		}
+		///判断父进程PTE是否在内存中
 		if (unlikely(!pte_present(*src_pte))) {
 			ret = copy_nonpresent_pte(dst_mm, src_mm,
 						  dst_pte, src_pte,
@@ -1221,6 +1224,12 @@ copy_p4d_range(struct vm_area_struct *dst_vma, struct vm_area_struct *src_vma,
 	return 0;
 }
 
+/*
+ * 进程地址空间拷贝核心函数
+ *
+ * 会沿着页表的PGD,P4D,PUD,PMD以及PTE的方向遍历页表
+ * 遍历页表函数: copy_one_pte()
+ */
 int
 copy_page_range(struct vm_area_struct *dst_vma, struct vm_area_struct *src_vma)
 {
@@ -1287,8 +1296,9 @@ copy_page_range(struct vm_area_struct *dst_vma, struct vm_area_struct *src_vma)
 		next = pgd_addr_end(addr, end);
 		if (pgd_none_or_clear_bad(src_pgd))
 			continue;
+		///遍历拷贝页表
 		if (unlikely(copy_p4d_range(dst_vma, src_vma, dst_pgd, src_pgd,
-					    addr, next))) {   ///遍历拷贝页表
+					    addr, next))) {
 			ret = -ENOMEM;
 			break;
 		}
