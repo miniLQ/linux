@@ -527,12 +527,13 @@ struct cfs_bandwidth { };
 
 /* CFS-related fields in a runqueue */
 struct cfs_rq {
-	struct load_weight	load;
-	unsigned int		nr_running;
+	struct load_weight	load;		///就绪队列里所有调度实体权重之和
+	unsigned int		nr_running;	///就绪队列中调度实体个数
 	unsigned int		h_nr_running;      /* SCHED_{NORMAL,BATCH,IDLE} */
 	unsigned int		idle_h_nr_running; /* SCHED_IDLE */
 
-	u64			exec_clock;
+	u64			exec_clock;	///就绪队列总运行时间
+	///就绪队列中最小的虚拟运行时间,红黑树的最小vruntime值
 	u64			min_vruntime;
 #ifdef CONFIG_SCHED_CORE
 	unsigned int		forceidle_seq;
@@ -543,15 +544,15 @@ struct cfs_rq {
 	u64			min_vruntime_copy;
 #endif
 
-	struct rb_root_cached	tasks_timeline;
+	struct rb_root_cached	tasks_timeline;		///红黑树的根，跟踪红黑树信息，缓存最小节点和根节点
 
 	/*
 	 * 'curr' points to currently running entity on this cfs_rq.
 	 * It is set to NULL otherwise (i.e when none are currently running).
 	 */
-	struct sched_entity	*curr;
-	struct sched_entity	*next;
-	struct sched_entity	*last;
+	struct sched_entity	*curr;		///指向当前正在运行进程
+	struct sched_entity	*next;		///切换即将运行的下一个进程
+	struct sched_entity	*last;		///抢占内核时，唤醒进程抢占了当前进程，last指向当前进程
 	struct sched_entity	*skip;
 
 #ifdef	CONFIG_SCHED_DEBUG
@@ -562,7 +563,7 @@ struct cfs_rq {
 	/*
 	 * CFS load tracking
 	 */
-	struct sched_avg	avg;
+	struct sched_avg	avg;		///用于PELT算法的负载计算
 #ifndef CONFIG_64BIT
 	u64			load_last_update_time_copy;
 #endif
@@ -919,15 +920,20 @@ DECLARE_STATIC_KEY_FALSE(sched_uclamp_used);
  * (such as the load balancing or the thread migration code), lock
  * acquire operations must be ordered by ascending &runqueue.
  */
+/*
+ * per-CPU变量，描述CPU通用就绪队列，rq记录一个就绪队列所需要的全部信息；
+ * 包括一个CFS就绪队列cfs_rq, 一个rt_rq, 一个dl_rq,
+ * 以及就绪队列的负载权重等信息
+ * */
 struct rq {
 	/* runqueue lock: */
-	raw_spinlock_t		__lock;
+	raw_spinlock_t		__lock;    ///保护通用就绪队列自旋锁
 
 	/*
 	 * nr_running and cpu_load should be in the same cacheline because
 	 * remote CPUs use both these fields when doing load calculation.
 	 */
-	unsigned int		nr_running;
+	unsigned int		nr_running;           ///就绪队列中可运行的进程数量
 #ifdef CONFIG_NUMA_BALANCING
 	unsigned int		nr_numa_running;
 	unsigned int		nr_preferred_running;
@@ -946,7 +952,7 @@ struct rq {
 #ifdef CONFIG_SMP
 	unsigned int		ttwu_pending;
 #endif
-	u64			nr_switches;
+	u64			nr_switches;    ///进程切换次数
 
 #ifdef CONFIG_UCLAMP_TASK
 	/* Utilization clamp values based on CPU's RUNNABLE tasks */
@@ -955,9 +961,9 @@ struct rq {
 #define UCLAMP_FLAG_IDLE 0x01
 #endif
 
-	struct cfs_rq		cfs;
-	struct rt_rq		rt;
-	struct dl_rq		dl;
+	struct cfs_rq		cfs;	///指向cfs就绪队列
+	struct rt_rq		rt;	///指向实时进程就绪队列
+	struct dl_rq		dl;	///指向dl进程就绪队列
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	/* list of leaf cfs_rq on this CPU: */
@@ -971,18 +977,18 @@ struct rq {
 	 * one CPU and if it got migrated afterwards it may decrease
 	 * it on another CPU. Always updated under the runqueue lock:
 	 */
-	unsigned int		nr_uninterruptible;
+	unsigned int		nr_uninterruptible;	///不可中断进程进入rq的次数
 
-	struct task_struct __rcu	*curr;
-	struct task_struct	*idle;
-	struct task_struct	*stop;
-	unsigned long		next_balance;
-	struct mm_struct	*prev_mm;
+	struct task_struct __rcu	*curr;		///指向正在运行的进程
+	struct task_struct	*idle;			///指向idle进程
+	struct task_struct	*stop;			///指向系统的stop进程
+	unsigned long		next_balance;		///下一次做负载均衡的时间
+	struct mm_struct	*prev_mm;		///进程切换时，指向前一个进程的mm
 
-	unsigned int		clock_update_flags;
+	unsigned int		clock_update_flags;	///更新就绪队列时钟的标志位
 	u64			clock;
 	/* Ensure that all clocks are in the same cache line */
-	u64			clock_task ____cacheline_aligned;
+	u64			clock_task ____cacheline_aligned;	///计算vruntime使用该时钟，每次时钟节拍到来时都会更新
 	u64			clock_pelt;
 	unsigned long		lost_idle_time;
 
@@ -998,29 +1004,29 @@ struct rq {
 #endif
 
 #ifdef CONFIG_SMP
-	struct root_domain		*rd;
-	struct sched_domain __rcu	*sd;
+	struct root_domain		*rd;		///调度域的根
+	struct sched_domain __rcu	*sd;		///指向CPU对应的最低等级的调度域
 
-	unsigned long		cpu_capacity;
-	unsigned long		cpu_capacity_orig;
+	unsigned long		cpu_capacity;		///cpu对应普通进程的量化计算能力，系统大约预留80%计算能力给普通进程，20%给实时进程
+	unsigned long		cpu_capacity_orig;	///CPU最高的量化计算能力，通常为1024
 
 	struct callback_head	*balance_callback;
 
 	unsigned char		nohz_idle_balance;
 	unsigned char		idle_balance;
 
-	unsigned long		misfit_task_load;
+	unsigned long		misfit_task_load;	///若一个进程实际算力大于CPU额定算力的80%，那这是个不合适的进程misfit_task
 
 	/* For active balancing */
 	int			active_balance;
-	int			push_cpu;
+	int			push_cpu;		///用于负载均衡，表示迁移的目标CPU
 	struct cpu_stop_work	active_balance_work;
 
 	/* CPU of this runqueue: */
-	int			cpu;
-	int			online;
+	int			cpu;		///表示就绪队列运行在哪个CPU上
+	int			online;		///表示CPU处于active或online状态
 
-	struct list_head cfs_tasks;
+	struct list_head cfs_tasks;		///可运行状态的se都添加到这个链表
 
 	struct sched_avg	avg_rt;
 	struct sched_avg	avg_dl;

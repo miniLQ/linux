@@ -11655,41 +11655,40 @@ static unsigned int get_rr_interval_fair(struct rq *rq, struct task_struct *task
  * All the scheduling class methods:
  */
 DEFINE_SCHED_CLASS(fair) = {
-
-	.enqueue_task		= enqueue_task_fair,
-	.dequeue_task		= dequeue_task_fair,
+	.enqueue_task		= enqueue_task_fair,	///把进程添加紧rq
+	.dequeue_task		= dequeue_task_fair,	///把进程移除rq
 	.yield_task		= yield_task_fair,
 	.yield_to_task		= yield_to_task_fair,
 
-	.check_preempt_curr	= check_preempt_wakeup,
+	.check_preempt_curr	= check_preempt_wakeup, ///检查是否需要抢占当前进程
 
-	.pick_next_task		= __pick_next_task_fair,
-	.put_prev_task		= put_prev_task_fair,
-	.set_next_task          = set_next_task_fair,
+	.pick_next_task		= __pick_next_task_fair, ///从就绪队列选择一个最有进程来运行
+	.put_prev_task		= put_prev_task_fair,	///把prev进程重新添加到就绪队列中
+	.set_next_task          = set_next_task_fair,	///修改policy或group
 
 #ifdef CONFIG_SMP
 	.balance		= balance_fair,
 	.pick_task		= pick_task_fair,
 	.select_task_rq		= select_task_rq_fair,
-	.migrate_task_rq	= migrate_task_rq_fair,
+	.migrate_task_rq	= migrate_task_rq_fair,		///用于迁移进程到一个新的rq
 
-	.rq_online		= rq_online_fair,
-	.rq_offline		= rq_offline_fair,
+	.rq_online		= rq_online_fair,		///设置rq状态为online
+	.rq_offline		= rq_offline_fair,		///关闭就绪队列
 
-	.task_dead		= task_dead_fair,
-	.set_cpus_allowed	= set_cpus_allowed_common,
+	.task_dead		= task_dead_fair,		///处理已终止的基层你
+	.set_cpus_allowed	= set_cpus_allowed_common,	///设置CPU可运行CPU范围
 #endif
 
-	.task_tick		= task_tick_fair,
-	.task_fork		= task_fork_fair,
+	.task_tick		= task_tick_fair,		///处理时钟节拍
+	.task_fork		= task_fork_fair,		///处理新进程与调度相关的一些初始化信息
 
-	.prio_changed		= prio_changed_fair,
-	.switched_from		= switched_from_fair,
-	.switched_to		= switched_to_fair,
+	.prio_changed		= prio_changed_fair,		///改变进程优先级
+	.switched_from		= switched_from_fair,		///切换调度类
+	.switched_to		= switched_to_fair,		///切换到下一个进程运行
 
 	.get_rr_interval	= get_rr_interval_fair,
 
-	.update_curr		= update_curr_fair,
+	.update_curr		= update_curr_fair,		///更新fq的运行时间，CFS更新虚拟时间
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	.task_change_group	= task_change_group_fair,

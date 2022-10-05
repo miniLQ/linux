@@ -543,19 +543,19 @@ struct sched_statistics {
 
 struct sched_entity {
 	/* For load-balancing: */
-	struct load_weight		load;
-	struct rb_node			run_node;
-	struct list_head		group_node;
-	unsigned int			on_rq;
+	struct load_weight		load;         ///权重信息，计算vruntime的时候，会用到in_weight
+	struct rb_node			run_node;     ///红黑树挂载点
+	struct list_head		group_node;   ///se加入就绪队列后，添加到rq->cfs_tasks链表
+	unsigned int			on_rq;        ///加入就绪队列，on_rq=1，否则on_rq=0
 
-	u64				exec_start;
-	u64				sum_exec_runtime;
+	u64				exec_start;             ///se虚拟时间的起始时间
+	u64				sum_exec_runtime;       ///实际运行时间总和
 	u64				vruntime;               ///虚拟运行时间，加权后的时间，单位ns，与定时器节拍无关
-	u64				prev_sum_exec_runtime;
+	u64				prev_sum_exec_runtime;  ///上一次统计se运行总时间
 
-	u64				nr_migrations;
+	u64				nr_migrations;          ///该se发生迁移的次数
 
-	struct sched_statistics		statistics;
+	struct sched_statistics		statistics;             ///统计信息
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	int				depth;
@@ -575,7 +575,7 @@ struct sched_entity {
 	 * Put into separate cache line so it does not
 	 * collide with read-mostly values above.
 	 */
-	struct sched_avg		avg;   ///负载调度实体
+	struct sched_avg		avg;   ///负载相关的信息
 #endif
 };
 
@@ -769,6 +769,7 @@ struct task_struct {
 	unsigned int			ptrace;
 
 #ifdef CONFIG_SMP
+	///进程是否正处于运行running状态
 	int				on_cpu;
 	struct __call_single_node	wake_entry;
 #ifdef CONFIG_THREAD_INFO_IN_TASK
@@ -777,6 +778,7 @@ struct task_struct {
 #endif
 	unsigned int			wakee_flips;
 	unsigned long			wakee_flip_decay_ts;
+	///上一次唤醒的是哪个进程
 	struct task_struct		*last_wakee;
 
 	/*
@@ -787,18 +789,36 @@ struct task_struct {
 	 * used CPU that may be idle.
 	 */
 	int				recent_used_cpu;
+	///进程上一次运行在哪个cpu
 	int				wake_cpu;
 #endif
+	/* 
+	 * on_rq:进程状态
+	 * TASK_ON_RQ_QUEUED:表示进程正在就绪队列中;
+	 * TASK_ON_RQ_MIGRATING: 处于迁移过程中的进程，可能不再就绪队列中
+	 */
 	int				on_rq;
 
+	/*
+	 * prio:调度类考虑的动态优先级,有些情况下可以暂时提高优先级，比如实时互斥锁；
+	 * static_prio:进程静态优先级,进程启动时分配，不会随时间改变，可以用nice(),sched_setscheduler()修改；
+	 * normal_prio:基于static_prio和调度策略计算的优先级,创建时继承父进程normal_prio,
+	 *             对普通进程，normal_prio=static_prio，
+	 *             对实时进程，会根据rt_priority重新计算normal_prio。
+	 * rt_priority:实时进程优先级
+	 * */
 	int				prio;
 	int				static_prio;
 	int				normal_prio;
 	unsigned int			rt_priority;
 
+	///调度类
 	const struct sched_class	*sched_class;
-	struct sched_entity		se;  ///进程调度实体
+	///进程调度实体
+	struct sched_entity		se;
+	///rt进程调度实体
 	struct sched_rt_entity		rt;
+	///deadline进程调度实体
 	struct sched_dl_entity		dl;
 
 #ifdef CONFIG_SCHED_CORE
@@ -834,7 +854,9 @@ struct task_struct {
 #endif
 
 	unsigned int			policy;
+	///进程运行运行的cpu个数
 	int				nr_cpus_allowed;
+	///进程允许运行cpu位图
 	const cpumask_t			*cpus_ptr;
 	cpumask_t			*user_cpus_ptr;
 	cpumask_t			cpus_mask;
