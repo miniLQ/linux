@@ -1474,7 +1474,7 @@ static struct mm_struct *dup_mm(struct task_struct *tsk,
 	memcpy(mm, oldmm, sizeof(*mm));
 
    	///初始化子进程内存描述符，并分配子进程私有的pgd页面
-	///子进程创建时，会分配一级页表，内存描述符中的pgd指向这个一级页表基地址，分配方式与具体有关
+	///子进程创建时，会分配一级页表，内存描述符中的pgd指向这个一级页表基地址，分配方式与具体硬件平台有关
 	if (!mm_init(mm, tsk, mm->user_ns))
 		goto fail_nomem;
 
@@ -2322,7 +2322,7 @@ static __latent_entropy struct task_struct *copy_process(
 	clear_tsk_latency_tracing(p);
 
 	/* ok, now we should be set up.. */
-	///分配全局pid
+	///分配全局pid,pid_vnr() allocs pid in process
 	p->pid = pid_nr(pid);
 
 	/*
@@ -2422,7 +2422,7 @@ static __latent_entropy struct task_struct *copy_process(
 		fd_install(pidfd, pidfile);
 
 	init_task_pid_links(p);
-	///将新线程添加到系统进程管理，比如链表，哈希表中；主线程(进程)，非主线程把不同管理方式
+	///将新线程添加到系统进程管理，比如链表，哈希表中；主线程(进程)，非主线程按不同管理方式
 	if (likely(p->pid)) {
 		ptrace_init_task(p, (clone_flags & CLONE_PTRACE) || trace);
 
@@ -2446,7 +2446,9 @@ static __latent_entropy struct task_struct *copy_process(
 			p->signal->has_child_subreaper = p->real_parent->signal->has_child_subreaper ||
 							 p->real_parent->signal->is_child_subreaper;
 			list_add_tail(&p->sibling, &p->real_parent->children);
+			///添加到进程管理的全局链表init_task.tasks
 			list_add_tail_rcu(&p->tasks, &init_task.tasks);
+			///添加到不同的哈希表
 			attach_pid(p, PIDTYPE_TGID);
 			attach_pid(p, PIDTYPE_PGID);
 			attach_pid(p, PIDTYPE_SID);
@@ -2462,6 +2464,7 @@ static __latent_entropy struct task_struct *copy_process(
 					  &p->signal->thread_head);
 		}
 		attach_pid(p, PIDTYPE_PID);
+		///线程总数递增
 		nr_threads++;
 	}
 	total_forks++;

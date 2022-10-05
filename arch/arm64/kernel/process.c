@@ -314,7 +314,10 @@ int arch_dup_task_struct(struct task_struct *dst, struct task_struct *src)
 }
 
 asmlinkage void ret_from_fork(void) asm("ret_from_fork");
-
+/*
+ * 拷贝父进程栈框(寄存器值)所有内容到子进程栈框里
+ * 修改子进程栈框中x0值(返回值)为0；
+ * */
 int copy_thread(unsigned long clone_flags, unsigned long stack_start,
 		unsigned long stk_sz, struct task_struct *p, unsigned long tls)
 {
@@ -334,6 +337,7 @@ int copy_thread(unsigned long clone_flags, unsigned long stack_start,
 	ptrauth_thread_init_kernel(p);
 
 	if (likely(!(p->flags & (PF_KTHREAD | PF_IO_WORKER)))) {
+		///子进程为用户进程
 		*childregs = *current_pt_regs();
 		childregs->regs[0] = 0;  ///子进程返回值
 

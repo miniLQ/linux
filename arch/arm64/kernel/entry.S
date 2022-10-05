@@ -765,7 +765,7 @@ SYM_CODE_START(ret_from_fork)
 	bl	asm_exit_to_user_mode
 
 	///用户子进程,返回用户空间，执行fork()或clone()系统调用的下一条指令
-	///父进程通常使用svc指令陷入内核空间，级用户进程返回到用户空间，执行svc的下一条指令
+	///父进程通常使用svc指令陷入内核空间，用户进程返回到用户空间，执行svc的下一条指令
 	b	ret_to_user
 
 SYM_CODE_END(ret_from_fork)
