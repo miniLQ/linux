@@ -546,7 +546,7 @@ struct sched_entity {
 	struct load_weight		load;         ///权重信息，计算vruntime的时候，会用到in_weight
 	struct rb_node			run_node;     ///红黑树挂载点
 	struct list_head		group_node;   ///se加入就绪队列后，添加到rq->cfs_tasks链表
-	unsigned int			on_rq;        ///加入就绪队列，on_rq=1，否则on_rq=0
+	unsigned int			on_rq;        ///已加入就绪队列，on_rq=1，否则on_rq=0
 
 	u64				exec_start;             ///se虚拟时间的起始时间
 	u64				sum_exec_runtime;       ///实际运行时间总和

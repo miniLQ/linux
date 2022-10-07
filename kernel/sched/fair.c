@@ -681,8 +681,8 @@ static u64 sched_slice(struct cfs_rq *cfs_rq, struct sched_entity *se)
 	if (sched_feat(ALT_PERIOD))
 		nr_running = rq_of(cfs_rq)->cfs.h_nr_running;
 
-	slice = __sched_period(nr_running + !se->on_rq);///计算调度周期
-
+	///计算调度周期
+	slice = __sched_period(nr_running + !se->on_rq);
 	for_each_sched_entity(se) {
 		struct load_weight *load;
 		struct load_weight lw;
@@ -690,12 +690,14 @@ static u64 sched_slice(struct cfs_rq *cfs_rq, struct sched_entity *se)
 		cfs_rq = cfs_rq_of(se);
 		load = &cfs_rq->load;
 
+		///如果没有加入就绪队列，更新cfs_rq->load
 		if (unlikely(!se->on_rq)) {
 			lw = cfs_rq->load;
 
 			update_load_add(&lw, se->load.weight);
 			load = &lw;
 		}
+		///换算成虚拟时间
 		slice = __calc_delta(slice, se->load.weight, load);
 	}
 
@@ -827,6 +829,8 @@ static void update_tg_load_avg(struct cfs_rq *cfs_rq)
 static void update_curr(struct cfs_rq *cfs_rq)
 {
 	struct sched_entity *curr = cfs_rq->curr;
+
+	///rq_clock_task在每个时钟节拍都会被更新
 	u64 now = rq_clock_task(rq_of(cfs_rq));
 	u64 delta_exec;
 
@@ -842,12 +846,16 @@ static void update_curr(struct cfs_rq *cfs_rq)
 	schedstat_set(curr->statistics.exec_max,
 		      max(delta_exec, curr->statistics.exec_max));
 
+	///更新累计实际运行时间
 	curr->sum_exec_runtime += delta_exec;
 	schedstat_add(cfs_rq->exec_clock, delta_exec);
 
-	curr->vruntime += calc_delta_fair(delta_exec, curr);  ///计算虚拟时间
+	///计算,更新虚拟时间
+	curr->vruntime += calc_delta_fair(delta_exec, curr);  
+	///更新cfs_rq最小vruntime
 	update_min_vruntime(cfs_rq);
 
+	///更新组统计信息
 	if (entity_is_task(curr)) {
 		struct task_struct *curtask = task_of(curr);
 
@@ -4206,9 +4214,11 @@ place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
 	 * little, place the new task so that it fits in the slot that
 	 * stays open at the end.
 	 */
+	 ///新建进程，vruntime进行惩罚,vruntime增加一个调度周期的时长，设定为刚执行完一个时间片
 	if (initial && sched_feat(START_DEBIT))
 		vruntime += sched_vslice(cfs_rq, se);
 
+	///唤醒睡眠进程，做一定补偿,默认补偿半个调度周期
 	/* sleeps up to a single latency don't count. */
 	if (!initial) {
 		unsigned long thresh = sysctl_sched_latency;
@@ -4224,6 +4234,7 @@ place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
 	}
 
 	/* ensure we never gain time by being placed backwards. */
+	///保证vruntime递增
 	se->vruntime = max_vruntime(se->vruntime, vruntime);
 }
 
@@ -4294,6 +4305,7 @@ enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 	if (renorm && curr)
 		se->vruntime += cfs_rq->min_vruntime;
 
+	///更新当前进程的vruntime
 	update_curr(cfs_rq);
 
 	/*
@@ -4302,6 +4314,7 @@ enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 	 * placed in the past could significantly boost this task to the
 	 * fairness detriment of existing tasks.
 	 */
+	///新进程(在创建时task_fork_fair减去了min_vruntime),加上当前cpu的cfs_rq最新的min_vruntime
 	if (renorm && !curr)
 		se->vruntime += cfs_rq->min_vruntime;
 
@@ -4313,20 +4326,23 @@ enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 	 *     its group cfs_rq
 	 *   - Add its new weight to cfs_rq->load.weight
 	 */
-	update_load_avg(cfs_rq, se, UPDATE_TG | DO_ATTACH); ///计算新进程负载，并更新整个CFS就绪队列负载
+
+       	///计算新进程负载，并更新整个CFS就绪队列负载
+	update_load_avg(cfs_rq, se, UPDATE_TG | DO_ATTACH);
 	se_update_runnable(se);
 	update_cfs_group(se);
 	account_entity_enqueue(cfs_rq, se);
 
-	if (flags & ENQUEUE_WAKEUP)  ///对刚睡醒进程补偿
+	///对刚睡醒进程补偿,默认半个调度周期
+	if (flags & ENQUEUE_WAKEUP)
 		place_entity(cfs_rq, se, 0);
 
 	check_schedstat_required();
 	update_stats_enqueue(cfs_rq, se, flags);
 	check_spread(cfs_rq, se);
 	if (!curr)
-		__enqueue_entity(cfs_rq, se); ///添加到CFS就绪队列红黑树中
-	se->on_rq = 1; ///on_rq==1,表示已经在红黑树
+		__enqueue_entity(cfs_rq, se);	///添加到CFS就绪队列红黑树中
+	se->on_rq = 1;				///on_rq==1,表示已经在红黑树
 
 	/*
 	 * When bandwidth control is enabled, cfs might have been removed
@@ -11112,10 +11128,13 @@ static void task_fork_fair(struct task_struct *p)
 	cfs_rq = task_cfs_rq(current);
 	curr = cfs_rq->curr;
 	if (curr) {
-		update_curr(cfs_rq);  ///更新虚拟时间
+		///更新当前正在运行的调度实体的运行时间
+		update_curr(cfs_rq);
+		///初始化当前创建的新进程的虚拟时间
 		se->vruntime = curr->vruntime;
 	}
-	place_entity(cfs_rq, se, 1);  ///对虚拟时间进行惩罚，防止新进程恶意抢占CPU
+	///新建进程，对虚拟时间进行惩罚，防止新进程恶意抢占CPU
+	place_entity(cfs_rq, se, 1);
 
 	if (sysctl_sched_child_runs_first && curr && entity_before(curr, se)) {
 		/*
