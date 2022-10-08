@@ -305,6 +305,8 @@ static int watchdog(void *dummy)
 		///超时,执行检测hungtask
 		///系统待机时，不做hungtask
 		if (t <= 0) {
+			///atomic_xchg返回reset_hung_task旧值
+			///比如从虚拟机中恢复时(commit:8b414521bc5375注释)，检测的hung_task可能不准,过滤掉?
 			if (!atomic_xchg(&reset_hung_task, 0) &&
 			    !hung_detector_suspended)
 				///判断超时用timerout，检测周期是interval
