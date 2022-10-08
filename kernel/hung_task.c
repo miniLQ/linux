@@ -93,6 +93,7 @@ static void check_hung_task(struct task_struct *t, unsigned long timeout)
 	 * Ensure the task is not frozen.
 	 * Also, skip vfork and any other user process that freezer should skip.
 	 */
+	///frozen的进程，vfork创建的父进程, 都直接跳过
 	if (unlikely(t->flags & (PF_FROZEN | PF_FREEZER_SKIP)))
 	    return;
 
@@ -101,6 +102,7 @@ static void check_hung_task(struct task_struct *t, unsigned long timeout)
 	 * TASK_UNINTERRUPTIBLE without having ever been switched out once, it
 	 * musn't be checked.
 	 */
+	///新创建，还没调度过的进程，跳过
 	if (unlikely(!switch_count))
 		return;
 
@@ -115,6 +117,7 @@ static void check_hung_task(struct task_struct *t, unsigned long timeout)
 	trace_sched_process_hang(t);
 
 	if (sysctl_hung_task_panic) {
+		///调整控制台打印级别，保证panic时能看到show_lock等有用信息
 		console_verbose();
 		hung_task_show_lock = true;
 		hung_task_call_panic = true;
@@ -124,6 +127,7 @@ static void check_hung_task(struct task_struct *t, unsigned long timeout)
 	 * Ok, the task did not get scheduled for more than 2 minutes,
 	 * complain:
 	 */
+	///打印sysctl_hung_task_warnings个hung_task,sysctl_hung_task_warnings==-1时，打印所有hung_task
 	if (sysctl_hung_task_warnings) {
 		if (sysctl_hung_task_warnings > 0)
 			sysctl_hung_task_warnings--;
@@ -161,6 +165,7 @@ static bool rcu_lock_break(struct task_struct *g, struct task_struct *t)
 	rcu_read_unlock();
 	cond_resched();
 	rcu_read_lock();
+	///pid_alive判断进程是否还活着
 	can_cont = pid_alive(g) && pid_alive(t);
 	put_task_struct(t);
 	put_task_struct(g);
@@ -173,8 +178,10 @@ static bool rcu_lock_break(struct task_struct *g, struct task_struct *t)
  * a really long time (120 seconds). If that happens, print out
  * a warning.
  */
+/*遍历系统所有进程,检测是否有D状态进程超过120s，若有做相应处理*/
 static void check_hung_uninterruptible_tasks(unsigned long timeout)
 {
+	///每次遍历进程的最大个数，防止锁占用时间太长
 	int max_count = sysctl_hung_task_check_count;
 	unsigned long last_break = jiffies;
 	struct task_struct *g, *t;
@@ -183,6 +190,7 @@ static void check_hung_uninterruptible_tasks(unsigned long timeout)
 	 * If the system crashed already then all bets are off,
 	 * do not report extra hung tasks:
 	 */
+	///进程已经crash或panic，不报告hungtask
 	if (test_taint(TAINT_DIE) || did_panic)
 		return;
 
@@ -205,11 +213,13 @@ static void check_hung_uninterruptible_tasks(unsigned long timeout)
 	if (hung_task_show_lock)
 		debug_show_all_locks();
 
+	///打印所有堆栈信息
 	if (hung_task_show_all_bt) {
 		hung_task_show_all_bt = false;
 		trigger_all_cpu_backtrace();
 	}
 
+	///panic
 	if (hung_task_call_panic)
 		panic("hung_task: blocked tasks");
 }
@@ -225,6 +235,7 @@ static long hung_timeout_jiffies(unsigned long last_checked,
 /*
  * Process updating of timeout sysctl
  */
+///当 /proc/sys/kernel/hung_task_timeout_secs写入新值时, 唤醒khungtaskd
 int proc_dohung_task_timeout_secs(struct ctl_table *table, int write,
 				  void *buffer, size_t *lenp, loff_t *ppos)
 {
@@ -251,6 +262,7 @@ EXPORT_SYMBOL_GPL(reset_hung_task_detector);
 
 static bool hung_detector_suspended;
 
+///获取待机挂起状态
 static int hungtask_pm_notify(struct notifier_block *self,
 			      unsigned long action, void *hcpu)
 {
@@ -278,6 +290,7 @@ static int watchdog(void *dummy)
 {
 	unsigned long hung_last_checked = jiffies;
 
+	///设置nice=0,避免占用过多CPU资源
 	set_user_nice(current, 0);
 
 	for ( ; ; ) {
@@ -289,23 +302,33 @@ static int watchdog(void *dummy)
 			interval = timeout;
 		interval = min_t(unsigned long, interval, timeout);
 		t = hung_timeout_jiffies(hung_last_checked, interval);
+		///超时,执行检测hungtask
+		///系统待机时，不做hungtask
 		if (t <= 0) {
 			if (!atomic_xchg(&reset_hung_task, 0) &&
 			    !hung_detector_suspended)
+				///判断超时用timerout，检测周期是interval
 				check_hung_uninterruptible_tasks(timeout);
 			hung_last_checked = jiffies;
 			continue;
 		}
+		///t jiffies后唤醒本线程
 		schedule_timeout_interruptible(t);
 	}
 
 	return 0;
 }
 
+/*
+ * func: 创建一个内核线程，用来检测系统中是否有进程，维持D状态超过120s(默认)
+ * 
+ */
 static int __init hung_task_init(void)
 {
+	///注册panic通知链，在panic时执行相应操作,这里设置did_panic=1;
 	atomic_notifier_chain_register(&panic_notifier_list, &panic_block);
 
+	///系统待机时，不执行hung_task
 	/* Disable hung task detector on suspend */
 	pm_notifier(hungtask_pm_notify, 0);
 

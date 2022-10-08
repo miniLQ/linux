@@ -1062,8 +1062,8 @@ struct task_struct {
 	atomic_t			tick_dep_mask;
 #endif
 	/* Context switch counts: */
-	unsigned long			nvcsw;
-	unsigned long			nivcsw;
+	unsigned long			nvcsw;		///进程主动切换次数
+	unsigned long			nivcsw;		///进程被动切换次数
 
 	/* Monotonic time in nsecs: */
 	u64				start_time;
@@ -1114,7 +1114,9 @@ struct task_struct {
 	struct sysv_shm			sysvshm;
 #endif
 #ifdef CONFIG_DETECT_HUNG_TASK
+	///最后一次切换时的总切换次数,只有两个地方更新:1.新建进程初始化, 2.hungtask线程中；
 	unsigned long			last_switch_count;
+	///最后一次切换的时间戳jiffies
 	unsigned long			last_switch_time;
 #endif
 	/* Filesystem information: */
