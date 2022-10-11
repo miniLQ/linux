@@ -42,6 +42,7 @@ int __read_mostly sysctl_hung_task_check_count = PID_MAX_LIMIT;
 /*
  * Zero means infinite timeout - no checking done:
  */
+///超时周期，默认120s
 unsigned long __read_mostly sysctl_hung_task_timeout_secs = CONFIG_DEFAULT_HUNG_TASK_TIMEOUT;
 
 /*
@@ -87,6 +88,7 @@ static struct notifier_block panic_block = {
 
 static void check_hung_task(struct task_struct *t, unsigned long timeout)
 {
+	///进程总切换次数=主动切换次数+被动切换次数
 	unsigned long switch_count = t->nvcsw + t->nivcsw;
 
 	/*
@@ -106,11 +108,13 @@ static void check_hung_task(struct task_struct *t, unsigned long timeout)
 	if (unlikely(!switch_count))
 		return;
 
+	///被切换过
 	if (switch_count != t->last_switch_count) {
 		t->last_switch_count = switch_count;
 		t->last_switch_time = jiffies;
 		return;
 	}
+	///timeout没超时
 	if (time_is_after_jiffies(t->last_switch_time + timeout * HZ))
 		return;
 
@@ -182,6 +186,7 @@ static bool rcu_lock_break(struct task_struct *g, struct task_struct *t)
 static void check_hung_uninterruptible_tasks(unsigned long timeout)
 {
 	///每次遍历进程的最大个数，防止锁占用时间太长
+	///可以配置，默认系统最大进程数
 	int max_count = sysctl_hung_task_check_count;
 	unsigned long last_break = jiffies;
 	struct task_struct *g, *t;
@@ -196,10 +201,14 @@ static void check_hung_uninterruptible_tasks(unsigned long timeout)
 
 	hung_task_show_lock = false;
 	rcu_read_lock();
+
+	///双重循环，遍历所有进程的所有线程
 	for_each_process_thread(g, t) {
 		if (!max_count--)
 			goto unlock;
+		///避免rcu占用时间过长，超过HUNG_TASK_LOCK_BREAK主动让出CPU
 		if (time_after(jiffies, last_break + HUNG_TASK_LOCK_BREAK)) {
+			///如果线程已经不alive,退出循环,用continue更合适?
 			if (!rcu_lock_break(g, t))
 				goto unlock;
 			last_break = jiffies;
@@ -246,6 +255,8 @@ int proc_dohung_task_timeout_secs(struct ctl_table *table, int write,
 	if (ret || !write)
 		goto out;
 
+	pr_err("---ret=%d,write=%d\n",ret,write);
+	///唤醒watchdog_task
 	wake_up_process(watchdog_task);
 
  out:
@@ -323,7 +334,6 @@ static int watchdog(void *dummy)
 
 /*
  * func: 创建一个内核线程，用来检测系统中是否有进程，维持D状态超过120s(默认)
- * 
  */
 static int __init hung_task_init(void)
 {

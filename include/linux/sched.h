@@ -1030,7 +1030,7 @@ struct task_struct {
 	struct list_head		ptrace_entry;
 
 	/* PID/PID hash table linkage. */
-	struct pid			*thread_pid;
+	struct pid			*thread_pid;	///进程pid哈希表，可以用来判断线程是否alive,进程退出,这个指针为NULL
 	struct hlist_node		pid_links[PIDTYPE_MAX];
 	struct list_head		thread_group;
 	struct list_head		thread_node;
