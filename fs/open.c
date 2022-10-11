@@ -1195,14 +1195,18 @@ static long do_sys_openat2(int dfd, const char __user *filename,
 	if (IS_ERR(tmp))
 		return PTR_ERR(tmp);
 
+	///获取空闲fd
 	fd = get_unused_fd_flags(how->flags);
 	if (fd >= 0) {
+		///创建file对象
 		struct file *f = do_filp_open(dfd, tmp, &op);
 		if (IS_ERR(f)) {
 			put_unused_fd(fd);
 			fd = PTR_ERR(f);
 		} else {
+			///文件inotify用到的通知
 			fsnotify_open(f);
+			///fd和file建立关联
 			fd_install(fd, f);
 		}
 	}

@@ -26,6 +26,7 @@
 
 struct fdtable {
 	unsigned int max_fds;
+	///对应各个打开的文件对象
 	struct file __rcu **fd;      /* current fd array */
 	unsigned long *close_on_exec;
 	unsigned long *open_fds;
@@ -54,7 +55,7 @@ struct files_struct {
 	bool resize_in_progress;
 	wait_queue_head_t resize_wait;
 
-	struct fdtable __rcu *fdt;
+	struct fdtable __rcu *fdt;		///打开文件统计信息关键数据机构
 	struct fdtable fdtab;
   /*
    * written part on a separate cache line in SMP
