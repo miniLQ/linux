@@ -219,18 +219,22 @@ static void check_hung_uninterruptible_tasks(unsigned long timeout)
 	}
  unlock:
 	rcu_read_unlock();
-	if (hung_task_show_lock)
+	if (hung_task_show_lock) {
+		printk("\n\n\n-------------show lock----------------\n");
 		debug_show_all_locks();
 
 	///打印所有堆栈信息
 	if (hung_task_show_all_bt) {
+		printk("\n\n\n-------------show all bt----------------\n");
 		hung_task_show_all_bt = false;
 		trigger_all_cpu_backtrace();
 	}
 
 	///panic
-	if (hung_task_call_panic)
+	if (hung_task_call_panic) {
+		printk("\n\n\n-------------show panic----------------\n");
 		panic("hung_task: blocked tasks");
+	}
 }
 
 static long hung_timeout_jiffies(unsigned long last_checked,
