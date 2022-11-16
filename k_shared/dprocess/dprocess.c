@@ -13,15 +13,16 @@
 
 
 #include "dprocess.h"
-
+static struct task_struct *pblock_thread = NULL; 
 static int w_count=0;
 static int dprocess_open(struct inode *inode, struct file *filp)
 {
 	w_count++;
 	if (w_count >= 3) {
 		w_count = 0;
-		__set_current_state(TASK_UNINTERRUPTIBLE);
-		schedule();
+	//	__set_current_state(TASK_UNINTERRUPTIBLE);
+		//__set_current_state(__TASK_STOPPED);
+	//	schedule();
 	}
 
 	printk("---open dprocess.\n");
@@ -36,8 +37,42 @@ static int dprocess_close(struct inode *inode, struct file *filp)
 
 static ssize_t dprocess_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 {
-	printk("---write.\n");
-	
+	char tmp[128];
+	memset(tmp, 0, sizeof(tmp));
+
+	if ((count < 2) || (count > sizeof(tmp) - 1)) {
+		pr_err("hung_task: string too long or too short.\n");
+		return -EINVAL;
+	}
+	if (copy_from_user(tmp, buf, count))
+		return -EFAULT;
+
+	if (tmp[count - 1] == '\n') {
+		tmp[count - 1] = '\0';
+	}
+
+	pr_err("d state:tmp=%s, count %d\n", tmp, (int)count);
+
+	struct task_struct *cur = get_current();
+	printk("---cur pid=%d,comm=%s\n", cur->pid, cur->comm);
+
+	if (strncmp(tmp, "test_d_block", strlen("test_d_block")) == 0) {
+		if (pblock_thread == NULL) {
+			pblock_thread = get_current();
+			printk("---set d state pid:%d,comm:%s\n", pblock_thread->pid,pblock_thread->comm);
+			set_current_state(TASK_UNINTERRUPTIBLE);
+			schedule();
+			printk("---set d state , after schedule\n");
+			pblock_thread = NULL;
+		}
+	} else if (strncmp(tmp, "test_d_unblock", strlen("test_d_unblock")) == 0) {
+		if (pblock_thread != NULL) {
+			printk("call wake_up_process pid:%d\n", pblock_thread->pid);
+			wake_up_process(pblock_thread);
+		}
+	} else
+		pr_err("hung_task: only accept on or off !\n");
+
 	return 0;
 }
 
@@ -87,6 +122,7 @@ static struct miscdevice dprocess_miscdev = {
 	.minor  = MISC_DYNAMIC_MINOR,
 	.name   = "dprocess",
 	.fops   = &dprocess_fops,
+	.mode = 0666,//S_IFREG|S_IRWXUGO,//S_IALLUGO, 
 };
 
 static int __init dprocess_init(void)
