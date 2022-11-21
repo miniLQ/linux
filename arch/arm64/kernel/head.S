@@ -438,7 +438,7 @@ SYM_FUNC_START_LOCAL(__create_page_tables)
 	ldr_l	x4, idmap_ptrs_per_pgd   //idmap_ptrs_per_pgd等于PTRS_PER_PGD,表示PGD页表由多少个页表项
 	adr_l	x6, __idmap_text_end		// __pa(__idmap_text_end)
 
-	///调用map_memory宏建立__idmap_text代码段  的映射页表；
+	///调用map_memory宏建立__idmap_text代码段的映射页表；
 /*
  * x0：idmap_pg_dir
  * x1：
@@ -454,7 +454,7 @@ SYM_FUNC_START_LOCAL(__create_page_tables)
 	 * Map the kernel image (starting with PHYS_OFFSET).
 	 */
 
-	///调用map_memory宏建立整个内核镜像代码段  的映射页表；
+	///调用map_memory宏建立整个内核镜像代码段的映射页表；
 	/**************************************************************************
 	 * 为什么要建第二张表？
 	 * CPU刚启动时，物理内存一般都在低地址(不会超过256T大小)，恒等映射的地址实际在用户空间了，
@@ -530,6 +530,8 @@ SYM_FUNC_END(__create_page_tables)
  *   x0 = __PHYS_OFFSET
  */
 SYM_FUNC_START_LOCAL(__primary_switched)
+	///已开启mmu，这里开始访问的都是虚拟地址,
+	///比如init_task静态定义的虚拟地址，已经映射到对应物理内存地址
 	adr_l	x4, init_task           ///init_thread_union指向thread_union数据结构，其中包含系统第一个进程(init进程)的内核栈
 
 	init_cpu_task x4, x5, x6

@@ -96,6 +96,7 @@ static phys_addr_t __init early_pgtable_alloc(int shift)
 	phys_addr_t phys;
 	void *ptr;
 
+	///分配PAGE_SIZE的页
 	phys = memblock_phys_alloc(PAGE_SIZE, PAGE_SIZE);
 	if (!phys)
 		panic("Failed to allocate page table page\n");
@@ -105,6 +106,7 @@ static phys_addr_t __init early_pgtable_alloc(int shift)
 	 * slot will be free, so we can (ab)use the FIX_PTE slot to initialise
 	 * any level of table.
 	 */
+	///通过fixmap得到虚拟地址，可以访问，清零
 	ptr = pte_set_fixmap(phys);
 
 	memset(ptr, 0, PAGE_SIZE);
@@ -113,6 +115,7 @@ static phys_addr_t __init early_pgtable_alloc(int shift)
 	 * Implicit barriers also ensure the zeroed page is visible to the page
 	 * table walker
 	 */
+	///清除临时pte页表项
 	pte_clear_fixmap();
 
 	return phys;
@@ -525,9 +528,11 @@ static void __init map_mem(pgd_t *pgdp)
 	 * So temporarily mark them as NOMAP to skip mappings in
 	 * the following for-loop
 	 */
+	///临时将内核的text段，rodata段打上nomap标志，防止进入下面的循环，后续会解除
 	memblock_mark_nomap(kernel_start, kernel_end - kernel_start); ///设备树可以定义nomap区，nomap段将不会被映射
 
 	/* map all the memory banks */
+	///映射memblock的所有memory区域，跳过内核text,rodata段
 	for_each_mem_range(i, &start, &end) {
 		if (start >= end)
 			break;
@@ -550,6 +555,7 @@ static void __init map_mem(pgd_t *pgdp)
 	 * Note that contiguous mappings cannot be remapped in this way,
 	 * so we should avoid them here.
 	 */
+	///将text和rodata以只读映射，同时解除nomap标志
 	__map_memblock(pgdp, kernel_start, kernel_end,
 		       PAGE_KERNEL, NO_CONT_MAPPINGS);
 	memblock_clear_nomap(kernel_start, kernel_end - kernel_start);
@@ -581,7 +587,7 @@ static void __init map_kernel_segment(pgd_t *pgdp, void *va_start, void *va_end,
 	BUG_ON(!PAGE_ALIGNED(size));
 
 	__create_pgd_mapping(pgdp, pa_start, (unsigned long)va_start, size, prot,
-			     early_pgtable_alloc, flags);   ///建立内存段映射，用early_pgtable_alloc动态分配
+			     early_pgtable_alloc, flags);   ///建立内存段映射，用early_pgtable_alloc动态分配页表
 
 	if (!(vm_flags & VM_NO_GUARD))   ///添加一个页的guard
 		size += PAGE_SIZE;
@@ -731,13 +737,17 @@ void __init paging_init(void)
 	pgd_t *pgdp = pgd_set_fixmap(__pa_symbol(swapper_pg_dir));  ///通过固定映射，访问swapper_pg_dir
 
 	map_kernel(pgdp);   ///建立内核的细粒度映射(分别建立内核每个段的动态映射)
-	map_mem(pgdp);      ///建立物理内存的线性映射(可以访问整个物理内存区域)
+	///	映射memblock子系统添加的内存区域						
+	map_mem(pgdp);      ///建立物理内存的线性映射(可以访问整个物理内存区域,memblock有效区域)
 
+	///解除fixed区域pgd虚拟地址映射
 	pgd_clear_fixmap();
 
+	///将pgd页表的内容切换到swapper_pgd_dir页表
 	cpu_replace_ttbr1(lm_alias(swapper_pg_dir));
 	init_mm.pgd = swapper_pg_dir;  ///切换内核主进程的pgd地址
 
+	///释放pgd页表的物理内存
 	memblock_free(__pa_symbol(init_pg_dir),
 		      __pa_symbol(init_pg_end) - __pa_symbol(init_pg_dir));
 
@@ -1217,9 +1227,9 @@ void __init early_fixmap_init(void)
 	p4d_t *p4dp, p4d;
 	pud_t *pudp;
 	pmd_t *pmdp;
-	unsigned long addr = FIXADDR_START;
+	unsigned long addr = FIXADDR_START;   ///FIXADDR_START,fixed map区域起始地址，定义在arch/arm64/include/asm/fixmap.h
 
-	pgdp = pgd_offset_k(addr);  ///获得pgd页表项
+	pgdp = pgd_offset_k(addr);  ///获得pgd页表项,pgd页表，内核只有一个PGD
 	p4dp = p4d_offset(pgdp, addr);   
 	p4d = READ_ONCE(*p4dp);
 	if (CONFIG_PGTABLE_LEVELS > 3 &&
@@ -1233,13 +1243,19 @@ void __init early_fixmap_init(void)
 		pudp = pud_offset_kimg(p4dp, addr);
 	} else {
 		if (p4d_none(p4d))
+			///将bm_pud物理地址写入pgd全局页表中
 			__p4d_populate(p4dp, __pa_symbol(bm_pud), P4D_TYPE_TABLE);   ///填充p4d表项
 		pudp = fixmap_pud(addr);   ///获得pud表项
 	}
 	if (pud_none(READ_ONCE(*pudp)))
+		///将bm_pmd写入pud页表目录中
 		__pud_populate(pudp, __pa_symbol(bm_pmd), PUD_TYPE_TABLE);      ///填充pud表项
 	pmdp = fixmap_pmd(addr);
+	///将bm_pte写入pmd页表目录
 	__pmd_populate(pmdp, __pa_symbol(bm_pte), PMD_TYPE_TABLE);  		///填充pmd表项
+																		//
+	//dtb最大不超过2MB, bm_pud, bm_pmd, bm_pte都是静态定义在内核bss段 
+
 
 	/*
 	 * The boot-ioremap range spans multiple pmds, for which
@@ -1288,7 +1304,8 @@ void __set_fixmap(enum fixed_addresses idx,
 
 void *__init fixmap_remap_fdt(phys_addr_t dt_phys, int *size, pgprot_t prot)
 {
-	const u64 dt_virt_base = __fix_to_virt(FIX_FDT);   ///获得设备树的虚拟地址i    
+	///完成fdt的pte页表填写，返回fdt虚拟地址，这里虚拟地址事先定义预留
+	const u64 dt_virt_base = __fix_to_virt(FIX_FDT);   ///获得设备树的虚拟地址
 	int offset;
 	void *dt_virt;
 
@@ -1315,6 +1332,7 @@ void *__init fixmap_remap_fdt(phys_addr_t dt_phys, int *size, pgprot_t prot)
 	 */
 	BUILD_BUG_ON(dt_virt_base % SZ_2M);
 
+	///early_fixmap_init已经建立了pud,pmd,保证fdt所在虚拟地址范围，在范围内,
 	BUILD_BUG_ON(__fix_to_virt(FIX_FDT_END) >> SWAPPER_TABLE_SHIFT !=
 		     __fix_to_virt(FIX_BTMAP_BEGIN) >> SWAPPER_TABLE_SHIFT);
 
@@ -1322,9 +1340,11 @@ void *__init fixmap_remap_fdt(phys_addr_t dt_phys, int *size, pgprot_t prot)
 	dt_virt = (void *)dt_virt_base + offset;
 
 	/* map the first chunk so we can read the size from the header */
-	create_mapping_noalloc(round_down(dt_phys, SWAPPER_BLOCK_SIZE),      ///建立映射，页表   的已知的，不能临时分配(因为伙伴系统尚未工作)
+	//根据提供的物理地址和虚拟地址，设置页表项
+	create_mapping_noalloc(round_down(dt_phys, SWAPPER_BLOCK_SIZE),      ///建立映射，页表物理地址已知的，不能临时分配(因为伙伴系统尚未工作)
 			dt_virt_base, SWAPPER_BLOCK_SIZE, prot);
 
+	///根据虚拟地址访问物理地址内容(fdt内容)，检测dtb文件头的魔数是否正确
 	if (fdt_magic(dt_virt) != FDT_MAGIC)
 		return NULL;
 
@@ -1332,6 +1352,7 @@ void *__init fixmap_remap_fdt(phys_addr_t dt_phys, int *size, pgprot_t prot)
 	if (*size > MAX_FDT_SIZE)
 		return NULL;
 
+	///如果dtb文件尾地址空间超过了2MB, 再紧接着再映射一个2m地址空间
 	if (offset + *size > SWAPPER_BLOCK_SIZE)
 		create_mapping_noalloc(round_down(dt_phys, SWAPPER_BLOCK_SIZE), dt_virt_base,
 			       round_up(offset + *size, SWAPPER_BLOCK_SIZE), prot);

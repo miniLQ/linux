@@ -1249,6 +1249,7 @@ static inline struct zoneref *first_zones_zonelist(struct zonelist *zonelist,
 
 #define NR_MEM_SECTIONS		(1UL << SECTIONS_SHIFT)
 
+///一个mem_section结构体对应的struct page结构体个数,128m/4k
 #define PAGES_PER_SECTION       (1UL << PFN_SECTION_SHIFT)
 #define PAGE_SECTION_MASK	(~(PAGES_PER_SECTION-1))
 
@@ -1259,6 +1260,13 @@ static inline struct zoneref *first_zones_zonelist(struct zonelist *zonelist,
 #error Allocator MAX_ORDER exceeds SECTION_SIZE
 #endif
 
+/*
+ * 页帧号转化为mem_section下标
+ * 一个mem_section表示128M内存空间，所有mem_section是连续的下标
+ * 对任意一个pfn,默认4K的页面，其mem_section下标是
+ * pfn*4k/128M=pfn/(128m/4k)=pfn/2^(27-12)
+ * = pfn >> PFN_SECTION_SHIFT
+ */
 static inline unsigned long pfn_to_section_nr(unsigned long pfn)
 {
 	return pfn >> PFN_SECTION_SHIFT;
@@ -1299,6 +1307,13 @@ void subsection_map_init(unsigned long pfn, unsigned long nr_pages);
 
 struct page;
 struct page_ext;
+/*
+ * struct mem_section **p ->struct mem_section *p ->struct page*
+ * struct mem_section**是一个全局二维指针，每个成员为struct mem_section数组；
+ * 每个一级指针，指向一个页大小的物理内存，对应PAGE_SIZE/sizeof(struct mem_section)个mem_section
+ * 二级指针，指向一个mem_section，其表达128M/4K个的struct page 
+ * 每个页框就是一个struct page
+ */
 struct mem_section {
 	/*
 	 * This is, logically, a pointer to an array of struct
@@ -1330,6 +1345,7 @@ struct mem_section {
 };
 
 #ifdef CONFIG_SPARSEMEM_EXTREME
+///一个根mem_section指针对应的mem_section结构体个数
 #define SECTIONS_PER_ROOT       (PAGE_SIZE / sizeof (struct mem_section))
 #else
 #define SECTIONS_PER_ROOT	1
@@ -1349,7 +1365,8 @@ static inline unsigned long *section_to_usemap(struct mem_section *ms)
 {
 	return ms->usage->pageblock_flags;
 }
-
+///所有root下标连续，每个root里的mem_section数组下标也是连续
+///这里根据nr，可以直接找到某个root里的具体mem_section
 static inline struct mem_section *__nr_to_section(unsigned long nr)
 {
 #ifdef CONFIG_SPARSEMEM_EXTREME
@@ -1358,6 +1375,8 @@ static inline struct mem_section *__nr_to_section(unsigned long nr)
 #endif
 	if (!mem_section[SECTION_NR_TO_ROOT(nr)])
 		return NULL;
+	///一维的偏移是nr/(PAGE/sizeof(mem_section*))
+	///二维偏移是nr&(PAGE/sizeof(mem_section*) - 1)
 	return &mem_section[SECTION_NR_TO_ROOT(nr)][nr & SECTION_ROOT_MASK];
 }
 extern size_t mem_section_usage_size(void);
@@ -1438,6 +1457,7 @@ void online_mem_sections(unsigned long start_pfn, unsigned long end_pfn);
 void offline_mem_sections(unsigned long start_pfn, unsigned long end_pfn);
 #endif
 
+///根据页帧号，返回全局mem_section下标，然后返回对应的结构体
 static inline struct mem_section *__pfn_to_section(unsigned long pfn)
 {
 	return __nr_to_section(pfn_to_section_nr(pfn));

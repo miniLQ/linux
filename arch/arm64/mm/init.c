@@ -226,6 +226,13 @@ static int __init early_mem(char *p)
 }
 early_param("mem", early_mem);
 
+/*
+ * 整理内存区域，将一些特殊区域添加到memblock内存管理模块中
+ * 移除不归内核管理的区域（dts的no-map区域），还申请一个公共区域的CMA
+ *
+ * 最终通过memblock模块，把内存中的空闲和被占用的区域进行分开管理
+ *
+ * */
 void __init arm64_memblock_init(void)
 {
 	s64 linear_region_size = PAGE_END - _PAGE_OFFSET(vabits_actual);
@@ -343,6 +350,7 @@ void __init arm64_memblock_init(void)
 	 * Register the kernel text, kernel data, initrd, and initial
 	 * pagetables with memblock.
 	 */
+	///将内核代码段设置为reserved类型
 	memblock_reserve(__pa_symbol(_stext), _end - _stext);
 	if (IS_ENABLED(CONFIG_BLK_DEV_INITRD) && phys_initrd_size) {
 		/* the generic initrd code expects virtual addresses */
@@ -350,8 +358,10 @@ void __init arm64_memblock_init(void)
 		initrd_end = initrd_start + phys_initrd_size;
 	}
 
+	///将dtb中的reserved-memory区域设置为reserved类型
 	early_init_fdt_scan_reserved_mem();
 
+	///ARM64中不需要高端内存，为了向前兼容，这里将高端内存的起始地址设置为物理内存的结束地址
 	high_memory = __va(memblock_end_of_DRAM() - 1) + 1;
 }
 
@@ -359,6 +369,7 @@ void __init bootmem_init(void)
 {
 	unsigned long min, max;
 
+	//获取最小，最大页帧号
 	min = PFN_UP(memblock_start_of_DRAM());
 	max = PFN_DOWN(memblock_end_of_DRAM());
 
@@ -386,6 +397,7 @@ void __init bootmem_init(void)
 	 * sparse_init() tries to allocate memory from memblock, so must be
 	 * done after the fixed reservations
 	 */
+	///sparse内存模型初始化；
 	sparse_init();
 	zone_sizes_init(min, max);
 

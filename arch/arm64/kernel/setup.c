@@ -185,6 +185,8 @@ static void __init setup_machine_fdt(phys_addr_t dt_phys)
 	const char *name;
 
 	if (dt_virt)
+		///把dtb所占内存添加到memblock管理的reserve模块，后续内存分配不会使用这段内存
+		//使用完后，会使用memblock_free()释放
 		memblock_reserve(dt_phys, size);
 
 	if (!dt_virt || !early_init_dt_scan(dt_virt)) {
@@ -293,6 +295,7 @@ u64 cpu_logical_map(unsigned int cpu)
 
 void __init __no_sanitize_address setup_arch(char **cmdline_p)
 {
+	///初始化，init_mm的地址，定义在arch/arm64/kernel/vmlinux.lds
 	setup_initial_init_mm(_stext, _etext, _edata, _end);
 
 	*cmdline_p = boot_command_line;
@@ -303,9 +306,10 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	 * everything later.
 	 */
 	arm64_use_ng_mappings = kaslr_requires_kpti();
-///注意这里都是创建的静态页表，因为内存子系统尚未建立(伙伴系统还没开始工作)
-	early_fixmap_init();   ///fixmap区映射
-	early_ioremap_init();  ///早期ioremap映射
+
+	///注意这里都是创建的静态页表，因为内存子系统尚未建立(伙伴系统还没开始工作)
+	early_fixmap_init();   ///fixmap区映射,只创建中间级转换页表,最后一级页表未创建
+	early_ioremap_init();  ///早期ioremap映射,依赖fixmap转换表
 
 	setup_machine_fdt(__fdt_pointer);///设备树映射,读取内存信息后，后面初始化页面分配器(伙伴系统)
 
@@ -335,8 +339,14 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	if (!efi_enabled(EFI_BOOT) && ((u64)_text % MIN_KIMG_ALIGN) != 0)
 	     pr_warn(FW_BUG "Kernel image misaligned at boot, please fix your bootloader!");
 
-	arm64_memblock_init();   ///初始化内存页表分配器(建立伙伴系统)
+	///整理memblock的内存区域
+	arm64_memblock_init();
 
+	///至此，物理内存通过memblock模块添加入了系统，但此时只有dtb，Image所在的两端物理内存可以访问；
+	//其他区域的物理内存，还没建立映射，可以通过memblock_alloc分配，但不能访问；
+	//接下来通过pagint_init建立不能访问的物理区域的页表;
+	//
+	//paging_init是内存初始化最核心的一步,将完成细粒度内核镜像映射(分别映射每个段),线性映射(内核可以访问整个物理内存)
 	paging_init();   ///建立动态页表
 
 	acpi_table_upgrade();

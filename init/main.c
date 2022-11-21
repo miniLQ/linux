@@ -934,11 +934,13 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	char *command_line;
 	char *after_dashes;
 
+	///设置栈顶魔数
 	set_task_stack_end_magic(&init_task);
 	smp_setup_processor_id();
 	debug_objects_early_init();
 	init_vmlinux_build_id();
 
+	///早期cgroup初始化
 	cgroup_init_early();
 
 	local_irq_disable();
@@ -952,7 +954,7 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	page_address_init();
 	pr_notice("%s", linux_banner);
 	early_security_init();
-	setup_arch(&command_line);  ///建立固定映射
+	setup_arch(&command_line);  ///建立固定映射,包括dtb文件映射，IO设备映射
 	setup_boot_config();
 	setup_command_line(command_line);
 	setup_nr_cpu_ids();

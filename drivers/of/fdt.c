@@ -1082,6 +1082,10 @@ u64 __init dt_mem_next_cell(int s, const __be32 **cellp)
 /*
  * early_init_dt_scan_memory - Look for and parse memory nodes
  */
+///choosen node，该节点保存bootargs属性
+//memory node，定义系统的物理内存布局，
+//DTBheader 的memreserve域，
+//reserved-memorynode, 定义系统保留的内存地址区域。
 int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
 				     int depth, void *data)
 {
@@ -1115,6 +1119,7 @@ int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
 			continue;
 		pr_debug(" - %llx, %llx\n", base, size);
 
+		///向系统注册该memory node内存区域, 通过memblock_add完成添加
 		early_init_dt_add_memory_arch(base, size);
 
 		if (!hotpluggable)
@@ -1271,11 +1276,16 @@ void __init early_init_dt_scan_nodes(void)
 	of_scan_flat_dt(early_init_dt_scan_root, NULL);
 
 	/* Retrieve various information from the /chosen node */
+	/*
+	 * 扫描chosen节点，把bootargs值拷贝到boot_command_line中，
+	 * 如果定义了CONFIG_CMDLINE宏，把命令行参数拷贝到boot_command_line
+	 * */
 	rc = of_scan_flat_dt(early_init_dt_scan_chosen, boot_command_line);
 	if (!rc)
 		pr_warn("No chosen node found, continuing without\n");
 
 	/* Setup memory, calling early_init_dt_add_memory_arch */
+	///对dtb中的memory node进行解析
 	of_scan_flat_dt(early_init_dt_scan_memory, NULL);
 
 	/* Handle linux,usable-memory-range property */
@@ -1286,6 +1296,7 @@ bool __init early_init_dt_scan(void *params)
 {
 	bool status;
 
+	//对dtb头进行检查
 	status = early_init_dt_verify(params);
 	if (!status)
 		return false;

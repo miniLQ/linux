@@ -231,8 +231,10 @@ static void __init memory_present(int nid, unsigned long start, unsigned long en
 	if (unlikely(!mem_section)) {
 		unsigned long size, align;
 
+		///需要NR_SECTION_ROOTS个一级指针
 		size = sizeof(struct mem_section *) * NR_SECTION_ROOTS;
 		align = 1 << (INTERNODE_CACHE_SHIFT);
+		///分配mem_section空间
 		mem_section = memblock_alloc(size, align);
 		if (!mem_section)
 			panic("%s: Failed to allocate %lu bytes align=0x%lx\n",
@@ -243,12 +245,16 @@ static void __init memory_present(int nid, unsigned long start, unsigned long en
 	start &= PAGE_SECTION_MASK;
 	mminit_validate_memmodel_limits(&start, &end);
 	for (pfn = start; pfn < end; pfn += PAGES_PER_SECTION) {
+		///计算pfn对应的全局mem_section下标
 		unsigned long section = pfn_to_section_nr(pfn);
 		struct mem_section *ms;
 
+		///如果section下标对应的一级指针没有分配空间，则在node上分配一页空间
 		sparse_index_init(section, nid);
+		///nid?
 		set_section_nid(section, nid);
 
+		///获取section下标对应的mem_section结构体
 		ms = __nr_to_section(section);
 		if (!ms->section_mem_map) {
 			ms->section_mem_map = sparse_encode_early_nid(nid) |
@@ -268,6 +274,7 @@ static void __init memblocks_present(void)
 	unsigned long start, end;
 	int i, nid;
 
+	///遍历memblock.memory中所有的块，获得起始地址，结束地址，nid
 	for_each_mem_pfn_range(i, MAX_NUMNODES, &start, &end, &nid)
 		memory_present(nid, start, end);
 }
@@ -560,14 +567,18 @@ void __init sparse_init(void)
 	unsigned long pnum_end, pnum_begin, map_count = 1;
 	int nid_begin;
 
+	///初始化mem_section二级指针
 	memblocks_present();
 
+	///找到第一个存在mem_section的下标
 	pnum_begin = first_present_section_nr();
+	///找第一个存在的mem_section的nid，在早期初始化阶段，section_mem_map保存node id 
 	nid_begin = sparse_early_nid(__nr_to_section(pnum_begin));
 
 	/* Setup pageblock_order for HUGETLB_PAGE_SIZE_VARIABLE */
 	set_pageblock_order();
 
+	///遍历所有存在的mem_section
 	for_each_present_section_nr(pnum_begin + 1, pnum_end) {
 		int nid = sparse_early_nid(__nr_to_section(pnum_end));
 
@@ -576,6 +587,7 @@ void __init sparse_init(void)
 			continue;
 		}
 		/* Init node with sections in range [pnum_begin, pnum_end) */
+		///初始化mem_section[pnum_end,pnum_end)
 		sparse_init_nid(nid_begin, pnum_begin, pnum_end, map_count);
 		nid_begin = nid;
 		pnum_begin = pnum_end;

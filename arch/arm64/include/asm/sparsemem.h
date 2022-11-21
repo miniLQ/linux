@@ -23,6 +23,7 @@
  * entries could not be created for vmemmap mappings.
  * 16K follows 4K for simplicity.
  */
+///一个mem_section对应的物理地址范围,128MB
 #define SECTION_SIZE_BITS 27
 #endif /* CONFIG_ARM64_64K_PAGES */
 
