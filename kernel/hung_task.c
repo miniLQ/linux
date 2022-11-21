@@ -222,6 +222,7 @@ static void check_hung_uninterruptible_tasks(unsigned long timeout)
 	if (hung_task_show_lock) {
 		printk("\n\n\n-------------show lock----------------\n");
 		debug_show_all_locks();
+	}
 
 	///打印所有堆栈信息
 	if (hung_task_show_all_bt) {
