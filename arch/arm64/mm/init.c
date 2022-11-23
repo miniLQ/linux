@@ -373,11 +373,14 @@ void __init bootmem_init(void)
 	min = PFN_UP(memblock_start_of_DRAM());
 	max = PFN_DOWN(memblock_end_of_DRAM());
 
+	///如果开启memtest，内核会对没有使用的free memory做memtest，检测出异常的dram
+	//将这些dram通过reserve_bad_mem保留不用，从而保证系统正常boot
 	early_memtest(min << PAGE_SHIFT, max << PAGE_SHIFT);
 
 	max_pfn = max_low_pfn = max;
 	min_low_pfn = min;
 
+	///一些numa的初始化工作
 	arch_numa_init();
 
 	/*
@@ -482,6 +485,8 @@ void __init mem_init(void)
 
 	pr_notice("      .idmap_text : 0x%16llx" " - 0x%16llx" "	 (%6lld KB)\n",
 		MLK_ROUNDUP((u64)__idmap_text_start, (u64)__idmap_text_end));
+	pr_notice("---idmap_pg_dir : 0x%16llx\n", idmap_pg_dir);
+	pr_notice("---swapper_pg_dir : 0x%16llx\n", swapper_pg_dir);
 	/*
 	 * Check boundaries twice: Some fundamental inconsistencies can be
 	 * detected at build time already.

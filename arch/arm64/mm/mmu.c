@@ -106,7 +106,7 @@ static phys_addr_t __init early_pgtable_alloc(int shift)
 	 * slot will be free, so we can (ab)use the FIX_PTE slot to initialise
 	 * any level of table.
 	 */
-	///通过fixmap得到虚拟地址，可以访问，清零
+	///通过fixmap映射得到虚拟地址，可以访问，清零
 	ptr = pte_set_fixmap(phys);
 
 	memset(ptr, 0, PAGE_SIZE);
@@ -734,7 +734,7 @@ static void __init map_kernel(pgd_t *pgdp)
 
 void __init paging_init(void)
 {
-	pgd_t *pgdp = pgd_set_fixmap(__pa_symbol(swapper_pg_dir));  ///通过固定映射，访问swapper_pg_dir
+	pgd_t *pgdp = pgd_set_fixmap(__pa_symbol(swapper_pg_dir));  ///通过固定映射映射，访问swapper_pg_dir
 
 	map_kernel(pgdp);   ///建立内核的细粒度映射(分别建立内核每个段的动态映射)
 	///	映射memblock子系统添加的内存区域						
@@ -747,7 +747,7 @@ void __init paging_init(void)
 	cpu_replace_ttbr1(lm_alias(swapper_pg_dir));
 	init_mm.pgd = swapper_pg_dir;  ///切换内核主进程的pgd地址
 
-	///释放pgd页表的物理内存
+	///释放init_pg_dir页表的物理内存
 	memblock_free(__pa_symbol(init_pg_dir),
 		      __pa_symbol(init_pg_end) - __pa_symbol(init_pg_dir));
 
@@ -1221,6 +1221,10 @@ static inline pte_t *fixmap_pte(unsigned long addr)
  * lm_alias so __p*d_populate functions must be used to populate with the
  * physical address from __pa_symbol.
  */
+///创建fixmap的前三级页表，
+//pgd:全局共用,swapper_pg_dir;
+//pud,pmd:预先定义好(物理内存管理系统尚未创立),定义在内核的.bss段，而内核镜像已经做了粗粒度映射，可以直接访问；
+//这里没有创建pte页表，因为这里映射的是块内存2MB,比如DTB，在fixmap_remap_fdt函数建立
 void __init early_fixmap_init(void)
 {
 	pgd_t *pgdp;
@@ -1292,6 +1296,7 @@ void __set_fixmap(enum fixed_addresses idx,
 
 	BUG_ON(idx <= FIX_HOLE || idx >= __end_of_fixed_addresses);
 
+	///根据虚拟地址，获取pte页表项，在预先定义的bm_pte
 	ptep = fixmap_pte(addr);
 
 	if (pgprot_val(flags)) {
@@ -1341,7 +1346,8 @@ void *__init fixmap_remap_fdt(phys_addr_t dt_phys, int *size, pgprot_t prot)
 
 	/* map the first chunk so we can read the size from the header */
 	//根据提供的物理地址和虚拟地址，设置页表项
-	create_mapping_noalloc(round_down(dt_phys, SWAPPER_BLOCK_SIZE),      ///建立映射，页表物理地址已知的，不能临时分配(因为伙伴系统尚未工作)
+	//建立映射，页表物理地址已知的，不能临时分配(因为伙伴系统尚未工作)
+	create_mapping_noalloc(round_down(dt_phys, SWAPPER_BLOCK_SIZE), 
 			dt_virt_base, SWAPPER_BLOCK_SIZE, prot);
 
 	///根据虚拟地址访问物理地址内容(fdt内容)，检测dtb文件头的魔数是否正确

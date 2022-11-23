@@ -181,6 +181,8 @@ asmlinkage void __init early_fdt_map(u64 dt_phys)
 static void __init setup_machine_fdt(phys_addr_t dt_phys)
 {
 	int size;
+	///完成fdt的pte页表填写，返回fdt虚拟地址，这里虚拟地址事先定义预留
+	///映射了2MB
 	void *dt_virt = fixmap_remap_fdt(dt_phys, &size, PAGE_KERNEL);
 	const char *name;
 
@@ -189,6 +191,7 @@ static void __init setup_machine_fdt(phys_addr_t dt_phys)
 		//使用完后，会使用memblock_free()释放
 		memblock_reserve(dt_phys, size);
 
+	///扫描解析dtb，将内存布局信息填入memblock系统
 	if (!dt_virt || !early_init_dt_scan(dt_virt)) {
 		pr_crit("\n"
 			"Error: invalid device tree blob at physical address %pa (virtual address 0x%p)\n"
@@ -311,7 +314,7 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	early_fixmap_init();   ///fixmap区映射,只创建中间级转换页表,最后一级页表未创建
 	early_ioremap_init();  ///早期ioremap映射,依赖fixmap转换表
 
-	setup_machine_fdt(__fdt_pointer);///设备树映射,读取内存信息后，后面初始化页面分配器(伙伴系统)
+	setup_machine_fdt(__fdt_pointer);///设备树映射,读取内存信息后，填入memblock系统，用于后面伙伴系统
 
 	/*
 	 * Initialise the static keys early as they may be enabled by the
@@ -342,7 +345,7 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	///整理memblock的内存区域
 	arm64_memblock_init();
 
-	///至此，物理内存通过memblock模块添加入了系统，但此时只有dtb，Image所在的两端物理内存可以访问；
+	///至此，物理内存通过memblock模块添加入了系统，但此时只有dtb，Image所在的两段物理内存可以访问；
 	//其他区域的物理内存，还没建立映射，可以通过memblock_alloc分配，但不能访问；
 	//接下来通过pagint_init建立不能访问的物理区域的页表;
 	//
@@ -357,6 +360,8 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	if (acpi_disabled)
 		unflatten_device_tree();
 
+	///至此，内核已经可以访问所有物理内存
+	///接下来开始初始化内存的关键数据结构，Linux当前默认采用sparse内存模型
 	bootmem_init();
 
 	kasan_init();

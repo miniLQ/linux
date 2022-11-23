@@ -76,8 +76,10 @@ void __init early_ioremap_setup(void)
 			break;
 
 	for (i = 0; i < FIX_BTMAPS_SLOTS; i++)
-		slot_virt[i] = __fix_to_virt(FIX_BTMAP_BEGIN - NR_FIX_BTMAPS*i);   ///根据索引，得到虚拟地址
-}
+		///根据索引，得到虚拟地址
+		///每个虚拟地址区域预留NR_FIX_BTMAPS个页
+		slot_virt[i] = __fix_to_virt(FIX_BTMAP_BEGIN - NR_FIX_BTMAPS*i);
+	}
 
 static int __init check_early_ioremap_leak(void)
 {

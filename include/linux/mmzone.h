@@ -1375,7 +1375,7 @@ static inline struct mem_section *__nr_to_section(unsigned long nr)
 #endif
 	if (!mem_section[SECTION_NR_TO_ROOT(nr)])
 		return NULL;
-	///一维的偏移是nr/(PAGE/sizeof(mem_section*))
+	///一维的偏移是nr/(PAGE/sizeof(struct mem_section))
 	///二维偏移是nr&(PAGE/sizeof(mem_section*) - 1)
 	return &mem_section[SECTION_NR_TO_ROOT(nr)][nr & SECTION_ROOT_MASK];
 }

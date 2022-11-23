@@ -109,17 +109,27 @@ static struct memblock_region memblock_physmem_init_regions[INIT_PHYSMEM_REGIONS
 #endif
 
 struct memblock memblock __initdata_memblock = {
+	///内存区域数组，存放在内核镜像的.meminit.data段
 	.memory.regions		= memblock_memory_init_regions,
+	///没有内存区域时，cnt=1
 	.memory.cnt		= 1,	/* empty dummy entry */
+	///系统预留memory类型，内存区域最大值128,不足可以补充
 	.memory.max		= INIT_MEMBLOCK_REGIONS,
+	///memory类型内存区域管理器名字
 	.memory.name		= "memory",
 
+	///内存区域数组,存放在内核镜像的.meminit.data段
 	.reserved.regions	= memblock_reserved_init_regions,
+	///没有内存区域时，cnt=1
 	.reserved.cnt		= 1,	/* empty dummy entry */
+	///系统预留reserce类型，内存区域最大值128,不足可以补充
 	.reserved.max		= INIT_MEMBLOCK_RESERVED_REGIONS,
+	///reserved类型内存区域管理器名字
 	.reserved.name		= "reserved",
 
+	///内存管理器记录的内存区域的物理地址，默认从小到大排列
 	.bottom_up		= false,
+	///Memblock内存管理器最大物理内存，64位系统是(uint64_t)-1
 	.current_limit		= MEMBLOCK_ALLOC_ANYWHERE,
 };
 
@@ -502,6 +512,10 @@ static void __init_memblock memblock_merge_regions(struct memblock_type *type)
 		struct memblock_region *this = &type->regions[i];
 		struct memblock_region *next = &type->regions[i + 1];
 
+		///同时满足如下条件才合并
+		//1.两块内存相连;
+		//2.在同一个node；
+		//3.有相同标志;
 		if (this->base + this->size != next->base ||
 		    memblock_get_region_node(this) !=
 		    memblock_get_region_node(next) ||
@@ -513,6 +527,7 @@ static void __init_memblock memblock_merge_regions(struct memblock_type *type)
 
 		this->size += next->size;
 		/* move forward from next + 1, index of which is i + 2 */
+		///后面的memblock_region都往前移一步
 		memmove(next, next + 1, (type->cnt - (i + 2)) * sizeof(*next));
 		type->cnt--;
 	}
@@ -564,6 +579,20 @@ static void __init_memblock memblock_insert_region(struct memblock_type *type,
  * Return:
  * 0 on success, -errno on failure.
  */
+/*
+ *								#		#end	
+ *								#		#	
+ *				#				#	   6#base
+ *--------------#---------------#---------#-----#----rend
+ #				#		#	   5#		  #		#	
+ *				#		#		#		  #		#
+ *		#		#	   4#				  #		#
+ *------#-------#-------------------------#-----#----rbase
+ * 	#  2#	   3#
+ *1 # 
+ *
+ * 如上图，新加入的内存区域(base, end)，与已存在内存区域，有6中情形
+ * */
 static int __init_memblock memblock_add_range(struct memblock_type *type,
 				phys_addr_t base, phys_addr_t size,
 				int nid, enum memblock_flags flags)
@@ -578,6 +607,7 @@ static int __init_memblock memblock_add_range(struct memblock_type *type,
 		return 0;
 
 	/* special case for empty array */
+	///首次新增内存块,直接插入
 	if (type->regions[0].size == 0) {
 		WARN_ON(type->cnt != 1 || type->total_size);
 		type->regions[0].base = base;
@@ -594,36 +624,44 @@ repeat:
 	 * to accommodate the new area.  The second actually inserts them.
 	 */
 	base = obase;
-	nr_new = 0;
+	nr_new = 0; ///本次新增内存块个数
 
 	for_each_memblock_type(idx, type, rgn) {
 		phys_addr_t rbase = rgn->base;
 		phys_addr_t rend = rbase + rgn->size;
 
 		if (rbase >= end)
+			//情形1,结束
 			break;
 		if (rend <= base)
+			//情形6，继续找下一块
 			continue;
 		/*
 		 * @rgn overlaps.  If it separates the lower part of new
 		 * area, insert that portion.
 		 */
 		if (rbase > base) {
+			///情形2/3
 #ifdef CONFIG_NUMA
 			WARN_ON(nid != memblock_get_region_node(rgn));
 #endif
 			WARN_ON(flags != rgn->flags);
+			///需新增一个内存块
 			nr_new++;
+			///第一趟不执行，只计算需新增的memblock_region个数
 			if (insert)
 				memblock_insert_region(type, idx++, base,
 						       rbase - base, nid,
 						       flags);
 		}
 		/* area below @rend is dealt with, forget about it */
+		///更新base，继续匹配
 		base = min(rend, end);
 	}
 
 	/* insert the remaining portion */
+	///base < end 情形5，需要再新增一个内存块
+	///base >=  end 情形4，无需新增
 	if (base < end) {
 		nr_new++;
 		if (insert)
@@ -631,6 +669,7 @@ repeat:
 					       nid, flags);
 	}
 
+	///如果不需要新增，直接返回
 	if (!nr_new)
 		return 0;
 
@@ -638,13 +677,18 @@ repeat:
 	 * If this was the first round, resize array and repeat for actual
 	 * insertions; otherwise, merge and return.
 	 */
+	///第一躺处理
 	if (!insert) {
+		///确保可以新增足够的memblock_regiong个数
 		while (type->cnt + nr_new > type->max)
+			///若不够，扩展
 			if (memblock_double_array(type, obase, size) < 0)
 				return -ENOMEM;
+		///执行第二趟
 		insert = true;
 		goto repeat;
 	} else {
+		///新增memblock_region后，处理重叠合并
 		memblock_merge_regions(type);
 		return 0;
 	}
