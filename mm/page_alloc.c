@@ -7230,7 +7230,9 @@ static unsigned long __init zone_absent_pages_in_node(int nid,
 
 	return nr_absent;
 }
-
+/*
+ * 计算节点中,各个内存zone的spanned_pages, present_pages成员值
+ * */
 static void __init calculate_node_totalpages(struct pglist_data *pgdat,
 						unsigned long node_start_pfn,
 						unsigned long node_end_pfn)
@@ -7569,6 +7571,7 @@ static inline void pgdat_set_deferred_range(pg_data_t *pgdat) {}
 
 static void __init free_area_init_node(int nid)
 {
+	///获取内存节点
 	pg_data_t *pgdat = NODE_DATA(nid);
 	unsigned long start_pfn = 0;
 	unsigned long end_pfn = 0;
@@ -7576,20 +7579,25 @@ static void __init free_area_init_node(int nid)
 	/* pg_data_t should be reset to zero when it's allocated */
 	WARN_ON(pgdat->nr_zones || pgdat->kswapd_highest_zoneidx);
 
+	///获取该节点的起始，结束帧
 	get_pfn_range_for_nid(nid, &start_pfn, &end_pfn);
 
+	///若为uma系统，只有一个节点，nid=0
 	pgdat->node_id = nid;
 	pgdat->node_start_pfn = start_pfn;
 	pgdat->per_cpu_nodestats = NULL;
 
+	///node nid的物理内存地址范围
 	pr_info("Initmem setup node %d [mem %#018Lx-%#018Lx]\n", nid,
 		(u64)start_pfn << PAGE_SHIFT,
 		end_pfn ? ((u64)end_pfn << PAGE_SHIFT) - 1 : 0);
+	///计算spanned_pages, present_pages成员值
 	calculate_node_totalpages(pgdat, start_pfn, end_pfn);
 
 	alloc_node_mem_map(pgdat);
 	pgdat_set_deferred_range(pgdat);
 
+	///节点核心成员初始化
 	free_area_init_core(pgdat);
 }
 

@@ -772,6 +772,8 @@ struct zoneref {
  * zonelist_zone_idx()	- Return the index of the zone for an entry
  * zonelist_node_idx()	- Return the index of the node for an entry
  */
+///该数组包含系统中各个node的各个zone的信息
+//zone的排列循序，由优先级决定
 struct zonelist {
 	struct zoneref _zonerefs[MAX_ZONES_PER_ZONELIST + 1];
 };
@@ -813,6 +815,7 @@ typedef struct pglist_data {
 	 * zones may be populated, but it is the full list. It is referenced by
 	 * this node's node_zonelists as well as other node's node_zonelists.
 	 */
+	///本节点的所有zone
 	struct zone node_zones[MAX_NR_ZONES];
 
 	/*
@@ -820,10 +823,13 @@ typedef struct pglist_data {
 	 * Generally the first zones will be references to this node's
 	 * node_zones.
 	 */
+	///本node的备选节点，及内存区域列表
 	struct zonelist node_zonelists[MAX_ZONELISTS];
 
+	///本node， zone的个数
 	int nr_zones; /* number of populated zones in this node */
 #ifdef CONFIG_FLATMEM	/* means !SPARSEMEM */
+	///struct page数组的指针
 	struct page *node_mem_map;
 #ifdef CONFIG_PAGE_EXTENSION
 	struct page_ext *node_page_ext;
@@ -844,13 +850,17 @@ typedef struct pglist_data {
 	 */
 	spinlock_t node_size_lock;
 #endif
+	///本node中内存的起始页帧号
 	unsigned long node_start_pfn;
+	///本node中所有可用物理页page数量
 	unsigned long node_present_pages; /* total number of physical pages */
+	///本node中所有物理页page数量,包括空洞页
 	unsigned long node_spanned_pages; /* total size of physical page
 					     range, including holes */
 	int node_id;
 	wait_queue_head_t kswapd_wait;
 	wait_queue_head_t pfmemalloc_wait;
+	///负责回收该node内存节点的内核线程，每个node对应一个内核线程kswapd
 	struct task_struct *kswapd;	/* Protected by
 					   mem_hotplug_begin/end() */
 	int kswapd_order;

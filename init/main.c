@@ -962,6 +962,7 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	smp_prepare_boot_cpu();	/* arch-specific boot-cpu hooks */
 	boot_cpu_hotplug_init();
 
+	///设置node中所有zone的,初始化伙伴系统的相关数据结构
 	build_all_zonelists(NULL);
 	page_alloc_init();
 
@@ -989,6 +990,7 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	vfs_caches_init_early();
 	sort_main_extable();
 	trap_init();
+	///将memblock管理的内存，释放到伙伴系统中去
 	mm_init();
 
 	ftrace_init();

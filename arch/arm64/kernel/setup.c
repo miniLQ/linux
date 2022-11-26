@@ -347,7 +347,7 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 
 	///至此，物理内存通过memblock模块添加入了系统，但此时只有dtb，Image所在的两段物理内存可以访问；
 	//其他区域的物理内存，还没建立映射，可以通过memblock_alloc分配，但不能访问；
-	//接下来通过pagint_init建立不能访问的物理区域的页表;
+	//接下来通过paging_init建立不能访问的物理区域的页表;
 	//
 	//paging_init是内存初始化最核心的一步,将完成细粒度内核镜像映射(分别映射每个段),线性映射(内核可以访问整个物理内存)
 	paging_init();   ///建立动态页表

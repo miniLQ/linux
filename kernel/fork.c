@@ -1096,7 +1096,7 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 		mm->def_flags = 0;
 	}
 
-	///分配pgd页表
+	///分配pgd页表,从伙伴系统分配
 	if (mm_alloc_pgd(mm))
 		goto fail_nopgd;
 
