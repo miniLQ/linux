@@ -30,11 +30,11 @@ struct vm_area_struct;
  */
 
 /* Plain integer GFP bitmasks. Do not use this directly. */
-#define ___GFP_DMA		0x01u
-#define ___GFP_HIGHMEM		0x02u
+#define ___GFP_DMA		0x01u            ///请求在ZONE_DMA区域中分配页面
+#define ___GFP_HIGHMEM		0x02u        ///请求在ZONE_HIGHMEM区域中分配页面
 #define ___GFP_DMA32		0x04u
-#define ___GFP_MOVABLE		0x08u
-#define ___GFP_RECLAIMABLE	0x10u
+#define ___GFP_MOVABLE      	0x08u
+#define ___GFP_RECLAIMABLE	0x10u        ///可回收内存页
 #define ___GFP_HIGH		0x20u
 #define ___GFP_IO		0x40u
 #define ___GFP_FS		0x80u

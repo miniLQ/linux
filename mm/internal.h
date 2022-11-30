@@ -137,10 +137,17 @@ extern bool cgroup_memory_nokmem;
  * in __alloc_pages_slowpath(). All other functions pass the whole structure
  * by a const pointer.
  */
+///页面分配过程中，用于存储页面分配各个函数之间的参数传递
 struct alloc_context {
+	///分配页面的zone列表,当perferred_zone上没有合适的页可以分配时，按zonelist中的顺序扫描该zonelist中备用zone列表
 	struct zonelist *zonelist;
+	///指定的node节点，未指定则在所有节点进行分配
 	nodemask_t *nodemask;
+	///指定要在快速路径中首先分配的区域，在慢路径中指定了zonelist中的第一个可用区域
+	//从high_zoneidx找到合适的zone，直接分配；
+	//分配失败的话，就从zonelist再找一个preferred_zone合适的zone
 	struct zoneref *preferred_zoneref;
+	///分配页面的迁移类型,zone->free_area.free_list[n]下标，用来反碎片化
 	int migratetype;
 
 	/*
@@ -153,7 +160,10 @@ struct alloc_context {
 	 * the target zone since higher zone than this index cannot be
 	 * usable for this allocation request.
 	 */
+	///将分配限制为小于区域列表中指定的高区域
+	//分配时，从high->normal->dma内存越来昂贵
 	enum zone_type highest_zoneidx;
+	//脏页区平衡相关
 	bool spread_dirty_pages;
 };
 
@@ -573,9 +583,9 @@ extern void set_pageblock_order(void);
 unsigned int reclaim_clean_pages_from_list(struct zone *zone,
 					    struct list_head *page_list);
 /* The ALLOC_WMARK bits are used as an index to zone->watermark */
-#define ALLOC_WMARK_MIN		WMARK_MIN
-#define ALLOC_WMARK_LOW		WMARK_LOW
-#define ALLOC_WMARK_HIGH	WMARK_HIGH
+#define ALLOC_WMARK_MIN		WMARK_MIN   ///在最小水位sater mark及以上限制页面分配
+#define ALLOC_WMARK_LOW		WMARK_LOW   ///仅在低水位及以上限制页面分配
+#define ALLOC_WMARK_HIGH	WMARK_HIGH  ///仅在高水位及以上限制页面分配
 #define ALLOC_NO_WATERMARKS	0x04 /* don't check watermarks at all */
 
 /* Mask to get the watermark bits */
@@ -592,10 +602,10 @@ unsigned int reclaim_clean_pages_from_list(struct zone *zone,
 #define ALLOC_OOM		ALLOC_NO_WATERMARKS
 #endif
 
-#define ALLOC_HARDER		 0x10 /* try to alloc harder */
-#define ALLOC_HIGH		 0x20 /* __GFP_HIGH set */
-#define ALLOC_CPUSET		 0x40 /* check for correct cpuset */
-#define ALLOC_CMA		 0x80 /* allow allocations from CMA areas */
+#define ALLOC_HARDER		 0x10 /* try to alloc harder */            ///设置__FGP_ATOMIC时会用
+#define ALLOC_HIGH		 0x20 /* __GFP_HIGH set */                     //高优先级分配，一般在fgp_mask设置了__GFP_ATOMIC时用
+#define ALLOC_CPUSET		 0x40 /* check for correct cpuset */       //检查是否为正确的cpuset
+#define ALLOC_CMA		 0x80 /* allow allocations from CMA areas */   //允许从CMA区域分配
 #ifdef CONFIG_ZONE_DMA32
 #define ALLOC_NOFRAGMENT	0x100 /* avoid mixing pageblock types */
 #else

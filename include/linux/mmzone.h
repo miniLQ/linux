@@ -39,6 +39,15 @@
  */
 #define PAGE_ALLOC_COSTLY_ORDER 3
 
+/*
+ * MIGRATE_UNMOVABLE: 不可移动
+ * MIGRATE_MOVABLE:   可移动
+ * MIGRATE_RECLAIMABLE:可回收
+ * MIGRATE_PCPTYPES:  per_cpu_pageset, 每CPU页框高速缓存的数据结构中的链表的迁移类型数目
+ * MIGRATE_CMA:       连续分配内存，避免预留大块内存
+ * MIGRATE_ISOLATE:   用于跨越numa节点移动的物理内存页，在大型系统上有益于将物理内存页移动到接近于使用该页最频繁的CPU.
+ * MIGRATE_TYPES:     移类型的数目
+ **/
 enum migratetype {
 	MIGRATE_UNMOVABLE,
 	MIGRATE_MOVABLE,

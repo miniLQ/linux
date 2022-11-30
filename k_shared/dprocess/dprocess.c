@@ -15,6 +15,7 @@
 #include "dprocess.h"
 static struct task_struct *pblock_thread = NULL; 
 static int w_count=0;
+static char *pbuf;
 static int dprocess_open(struct inode *inode, struct file *filp)
 {
 	w_count++;
@@ -26,6 +27,10 @@ static int dprocess_open(struct inode *inode, struct file *filp)
 	}
 
 	printk("---open dprocess.\n");
+	pbuf = vmalloc(1024*100);
+	if (pbuf) {
+		memset(pbuf,0xaa,1024*100);
+	}
 
 	return 0;
 }
