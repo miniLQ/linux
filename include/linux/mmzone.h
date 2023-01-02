@@ -358,8 +358,11 @@ enum zone_watermarks {
 
 /* Fields and list protected by pagesets local_lock in page_alloc.c */
 struct per_cpu_pages {
+	///链表中页面的个数
 	int count;		/* number of pages in the list */
+	///高水位
 	int high;		/* high watermark, emptying needed */
+	///每一次回收到伙伴系统的页面数量
 	int batch;		/* chunk size for buddy add/remove */
 	short free_factor;	/* batch scaling factor during free */
 #ifdef CONFIG_NUMA
@@ -367,6 +370,7 @@ struct per_cpu_pages {
 #endif
 
 	/* Lists of pages, one per migrate type stored on the pcp-lists */
+	//页面链表，有多个迁移类型
 	struct list_head lists[NR_PCP_LISTS];
 };
 
@@ -492,7 +496,7 @@ struct zone {
 
 	/* zone watermarks, access with *_wmark_pages(zone) macros */
 	unsigned long _watermark[NR_WMARK];  ///水位线，包括高水位，低水位，最低水位
-	unsigned long watermark_boost;
+	unsigned long watermark_boost;       ///临时水位线，防止外碎片化的优化
 
 	unsigned long nr_reserved_highatomic;
 
@@ -512,7 +516,7 @@ struct zone {
 #endif
 	struct pglist_data	*zone_pgdat;    ///指向内存节点
 
-	struct per_cpu_pages	__percpu *per_cpu_pageset; ///用于维护每个CPU的页面，减少自旋锁的竞争
+	struct per_cpu_pages	__percpu *per_cpu_pageset; ///用于维护每个CPU的单页面，申请单个页面时，减少自旋锁的竞争
 
 	struct per_cpu_zonestat	__percpu *per_cpu_zonestats;
 	/*
@@ -527,7 +531,7 @@ struct zone {
 	 * Flags for a pageblock_nr_pages block. See pageblock-flags.h.
 	 * In SPARSEMEM, this map is stored in struct mem_section
 	 */
-	unsigned long		*pageblock_flags;
+	unsigned long		*pageblock_flags; ///存储页块的MIGRATE_TYPES类型的内存空间
 #endif /* CONFIG_SPARSEMEM */
 
 	/* zone_start_pfn == zone_start_paddr >> PAGE_SHIFT */
@@ -753,6 +757,7 @@ enum {
  * This struct contains information about a zone in a zonelist. It is stored
  * here to avoid dereferences into large structures and lookups of tables
  */
+///zone_idx，表示zone编号，0表示最低
 struct zoneref {
 	struct zone *zone;	/* Pointer to actual zone */
 	int zone_idx;		/* zone_idx(zoneref->zone) */
@@ -774,6 +779,7 @@ struct zoneref {
  */
 ///该数组包含系统中各个node的各个zone的信息
 //zone的排列循序，由优先级决定
+///每一个struct zoneref描述一个zone
 struct zonelist {
 	struct zoneref _zonerefs[MAX_ZONES_PER_ZONELIST + 1];
 };
@@ -824,6 +830,8 @@ typedef struct pglist_data {
 	 * node_zones.
 	 */
 	///本node的备选节点，及内存区域列表
+	///MAX_ZONELISTS=2,ZONELIST_FALLBACK指向本地zone；
+	//ZONELIST_NOFALLBACK,指向远端的内存节点zone
 	struct zonelist node_zonelists[MAX_ZONELISTS];
 
 	///本node， zone的个数
