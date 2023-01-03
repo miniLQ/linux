@@ -68,6 +68,7 @@ struct anon_vma {
 
 	/* Interval tree of private "related" vmas */
 	///红黑树根节点，anon_vma内部有一颗红黑树
+	///存放所有子孙的AVC
 	struct rb_root_cached rb_root;   
 };
 
@@ -97,7 +98,7 @@ struct anon_vma_chain {
 	///把avc添加到vma的avc链表中
 	struct list_head same_vma;   /* locked by mmap_lock & page_table_lock */  
 
-	 ///把anon_vma添加到anon_vma的红黑树中
+	 ///把avc添加到anon_vma的红黑树中
 	struct rb_node rb;			/* locked by anon_vma->rwsem */              
 	unsigned long rb_subtree_last;
 #ifdef CONFIG_DEBUG_VM_RB
