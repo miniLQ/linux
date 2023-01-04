@@ -352,6 +352,9 @@ struct vm_area_struct *vm_area_alloc(struct mm_struct *mm)
 	return vma;
 }
 
+/*
+ * 申请一个vma,内容拷贝父进程vma
+ * */
 struct vm_area_struct *vm_area_dup(struct vm_area_struct *orig)
 {
 	struct vm_area_struct *new = kmem_cache_alloc(vm_area_cachep, GFP_KERNEL);

@@ -86,7 +86,10 @@ struct anon_vma {
  * which link all the VMAs associated with this anon_vma.
  */
  /**************************************************
- * func:链接枢纽
+ * func:链接枢纽, vma和AV的连接枢纽
+ * 1.链接每个VMA和其对应AV；
+ * 2.链接VMA和所有相关AV(父系进程AV);
+ * 3.AV的红黑树保存其所有子孙的AVC
  *************************************************/
 struct anon_vma_chain {
 	///指向vma,可以指向父进程，也可以指向子进程

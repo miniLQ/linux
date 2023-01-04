@@ -142,6 +142,14 @@ static void anon_vma_chain_free(struct anon_vma_chain *anon_vma_chain)
 	kmem_cache_free(anon_vma_chain_cachep, anon_vma_chain);
 }
 
+/*
+ * func:建立AVC, AV, VMA的关联
+ * 1.avc分别指向对应av,vma(可以是同一个进程，也可以是父子系进程)；
+ * 2.avc加入vma的avc链表；
+ * 3.avc加入av的avc红黑树；
+ *
+ * 通过(page指向av)av的avc红黑树，可以间接访问page相关联的所有vma；
+ * */
 static void anon_vma_chain_link(struct vm_area_struct *vma,
 				struct anon_vma_chain *avc,
 				struct anon_vma *anon_vma)
@@ -281,7 +289,7 @@ int anon_vma_clone(struct vm_area_struct *dst, struct vm_area_struct *src)
 	struct anon_vma_chain *avc, *pavc;
 	struct anon_vma *root = NULL;
 
-///遍历父进程vma中的avc链表，寻找avc实例
+///遍历父进程vma中的avc链表，寻找avc实例pavc, 通过avc间接访问av
 	list_for_each_entry_reverse(pavc, &src->anon_vma_chain, same_vma) {
 		struct anon_vma *anon_vma;
 
@@ -293,9 +301,9 @@ int anon_vma_clone(struct vm_area_struct *dst, struct vm_area_struct *src)
 			if (!avc)
 				goto enomem_failure;
 		}
-		anon_vma = pavc->anon_vma;
+		anon_vma = pavc->anon_vma;///根据avc, 找到父系进程的av
 		root = lock_anon_vma_root(root, anon_vma);
-		anon_vma_chain_link(dst, avc, anon_vma);      ///枢纽avc添加到父进程的rb,子进程的vma中avc链表中
+		anon_vma_chain_link(dst, avc, anon_vma);      ///建立枢纽avc, 父系进程av，子进程vma; avc添加到父进程av的avc红黑树rb中, 添加到子进程的vma中avc链表中
 
 		/*
 		 * Reuse existing anon_vma if its degree lower than two,
@@ -355,7 +363,7 @@ int anon_vma_fork(struct vm_area_struct *vma, struct vm_area_struct *pvma)
 	 * First, attach the new VMA to the parent VMA's anon_vmas,
 	 * so rmap can find non-COWed pages in child processes.
 	 */
-	 ///把子进程的vma(通过avc)绑定到父进程vma的av链表中
+	 ///链接子进程的vma和所有父系进程的av(通过创建多个avc实现)
 	error = anon_vma_clone(vma, pvma);  
 	if (error)
 		return error;
@@ -1092,7 +1100,7 @@ static void __page_set_anon_rmap(struct page *page,
 	 * could mistake the mapping for a struct address_space and crash.
 	 */
 	anon_vma = (void *) anon_vma + PAGE_MAPPING_ANON;
-	WRITE_ONCE(page->mapping, (struct address_space *) anon_vma);  ///page关联av
+	WRITE_ONCE(page->mapping, (struct address_space *) anon_vma);  ///page关联av,mapping指向av地址，最低为PAGE_MAPPING_ANON表示匿名页面
 	page->index = linear_page_index(vma, address);                 ///设置页在vma中的偏移
 }
 
@@ -1421,6 +1429,9 @@ out:
 /*
  * @arg: enum ttu_flags will be passed to this argument
  */
+/*
+ * 断开用户PTE页表项
+ * */
 static bool try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 		     unsigned long address, void *arg)
 {
@@ -2317,10 +2328,10 @@ static void rmap_walk_anon(struct page *page, struct rmap_walk_control *rwc,
 	pgoff_start = page_to_pgoff(page);
 	pgoff_end = pgoff_start + thp_nr_pages(page) - 1;
 
-///遍历av的红黑树中的avc
+///遍历av的红黑树中的avc, 间接访问page对应的所有vma
 	anon_vma_interval_tree_foreach(avc, &anon_vma->rb_root,
 			pgoff_start, pgoff_end) {
-		///从avc获得va
+		///从avc获得vma
 		struct vm_area_struct *vma = avc->vma;            
 		unsigned long address = vma_address(page, vma);
 
@@ -2329,7 +2340,7 @@ static void rmap_walk_anon(struct page *page, struct rmap_walk_control *rwc,
 
 		if (rwc->invalid_vma && rwc->invalid_vma(vma, rwc->arg))
 			continue;
-		///判断是都有映射
+		///断开用户pte页表项
 		if (!rwc->rmap_one(page, vma, address, rwc->arg))   
 			break;
 		if (rwc->done && rwc->done(page))
