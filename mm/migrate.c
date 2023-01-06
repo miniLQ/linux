@@ -1203,6 +1203,7 @@ int next_demotion_node(int node)
  * Obtain the lock on page, remove all ptes and migrate the page
  * to the newly allocated page in newpage.
  */
+///umap_and_move()将可迁移页面，迁移到空闲内存页中
 static int unmap_and_move(new_page_t get_new_page,
 				   free_page_t put_new_page,
 				   unsigned long private, struct page *page,
@@ -1494,6 +1495,7 @@ int migrate_pages(struct list_head *from, new_page_t get_new_page,
 		retry = 0;
 		thp_retry = 0;
 
+		///遍历可迁移页面链表
 		list_for_each_entry_safe(page, page2, from, lru) {
 retry:
 			/*
@@ -1511,6 +1513,7 @@ retry:
 						pass > 2, mode, reason,
 						&ret_pages);
 			else
+			///umap_and_move()将可迁移页面，迁移到空闲内存页中
 				rc = unmap_and_move(get_new_page, put_new_page,
 						private, page, pass > 2, mode,
 						reason, &ret_pages);

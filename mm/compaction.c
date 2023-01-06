@@ -836,6 +836,7 @@ isolate_migratepages_block(struct compact_control *cc, unsigned long low_pfn,
 	}
 
 	/* Time to isolate some pages for migration */
+	///遍历所有内存页
 	for (; low_pfn < end_pfn; low_pfn++) {
 
 		if (skip_on_failure && low_pfn >= next_skip_pfn) {
@@ -883,6 +884,7 @@ isolate_migratepages_block(struct compact_control *cc, unsigned long low_pfn,
 
 		nr_scanned++;
 
+		///通过页帧号获取page
 		page = pfn_to_page(low_pfn);
 
 		/*
@@ -1058,12 +1060,14 @@ isolate_migratepages_block(struct compact_control *cc, unsigned long low_pfn,
 			low_pfn += compound_nr(page) - 1;
 
 		/* Successfully isolated */
+		///可以迁移的页，从LRU中删除
 		del_page_from_lru_list(page, lruvec);
 		mod_node_page_state(page_pgdat(page),
 				NR_ISOLATED_ANON + page_is_file_lru(page),
 				thp_nr_pages(page));
 
 isolate_success:
+		///添加到可移动内存页链表
 		list_add(&page->lru, &cc->migratepages);
 isolate_success_no_list:
 		cc->nr_migratepages += compound_nr(page);
@@ -1842,6 +1846,7 @@ static unsigned long fast_find_migrateblock(struct compact_control *cc)
  * starting at the block pointed to by the migrate scanner pfn within
  * compact_control.
  */
+///收集所有可迁移内存页
 static isolate_migrate_t isolate_migratepages(struct compact_control *cc)
 {
 	unsigned long block_start_pfn;
@@ -2265,6 +2270,9 @@ bool compaction_zonelist_suitable(struct alloc_context *ac, int order,
 	return false;
 }
 
+/*
+ * 碎片整理的实际过程
+ * */
 static enum compact_result
 compact_zone(struct compact_control *cc, struct capture_control *capc)
 {
@@ -2283,6 +2291,7 @@ compact_zone(struct compact_control *cc, struct capture_control *capc)
 	cc->total_free_scanned = 0;
 	cc->nr_migratepages = 0;
 	cc->nr_freepages = 0;
+	///初始化两个链表
 	INIT_LIST_HEAD(&cc->freepages);
 	INIT_LIST_HEAD(&cc->migratepages);
 
@@ -2367,6 +2376,7 @@ compact_zone(struct compact_control *cc, struct capture_control *capc)
 			cc->rescan = true;
 		}
 
+		///收集可迁移的内存页
 		switch (isolate_migratepages(cc)) {
 		case ISOLATE_ABORT:
 			ret = COMPACT_CONTENDED;
@@ -2390,6 +2400,7 @@ compact_zone(struct compact_control *cc, struct capture_control *capc)
 			last_migrated_pfn = iteration_start_pfn;
 		}
 
+		///将可迁移的内存页，迁移到空闲链表中
 		err = migrate_pages(&cc->migratepages, compaction_alloc,
 				compaction_free, (unsigned long)cc, cc->mode,
 				MR_COMPACTION, NULL);
@@ -2477,6 +2488,9 @@ out:
 	return ret;
 }
 
+/*
+ * 实现内存碎片整理
+ */
 static enum compact_result compact_zone_order(struct zone *zone, int order,
 		gfp_t gfp_mask, enum compact_priority prio,
 		unsigned int alloc_flags, int highest_zoneidx,
@@ -2510,6 +2524,7 @@ static enum compact_result compact_zone_order(struct zone *zone, int order,
 	barrier();
 	WRITE_ONCE(current->capture_control, &capc);
 
+	///碎片整理
 	ret = compact_zone(&cc, &capc);
 
 	VM_BUG_ON(!list_empty(&cc.freepages));
@@ -2565,6 +2580,7 @@ enum compact_result try_to_compact_pages(gfp_t gfp_mask, unsigned int order,
 
 	trace_mm_compaction_try_to_compact_pages(order, gfp_mask, prio);
 
+	///遍历所有zone区
 	/* Compact each zone in the list */
 	for_each_zone_zonelist_nodemask(zone, z, ac->zonelist,
 					ac->highest_zoneidx, ac->nodemask) {
@@ -2576,6 +2592,7 @@ enum compact_result try_to_compact_pages(gfp_t gfp_mask, unsigned int order,
 			continue;
 		}
 
+		///对本zone进行内存碎片整理
 		status = compact_zone_order(zone, order, gfp_mask, prio,
 				alloc_flags, ac->highest_zoneidx, capture);
 		rc = max(status, rc);
