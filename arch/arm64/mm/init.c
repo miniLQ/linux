@@ -491,6 +491,11 @@ void __init mem_init(void)
 		MLK_ROUNDUP((u64)__idmap_text_start, (u64)__idmap_text_end));
 	pr_notice("---idmap_pg_dir : 0x%16llx\n", idmap_pg_dir);
 	pr_notice("---swapper_pg_dir : 0x%16llx\n", swapper_pg_dir);
+#undef MLK
+#undef MLM
+#undef MLK_ROUNDUP
+	
+	
 	/*
 	 * Check boundaries twice: Some fundamental inconsistencies can be
 	 * detected at build time already.
