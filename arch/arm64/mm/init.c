@@ -482,7 +482,7 @@ void __init mem_init(void)
 		    (unsigned long)high_memory));
 	pr_notice("    PAGE_OFFSET  : 0x%16lx\n",
 		PAGE_OFFSET);
-	pr_notice("    kimage_voffset : 0x%16llx\n", kimage_voffset);
+	pr_notice("    _stext : 0x%16llx\n", _stext);
 	pr_notice("    PHYS_OFFSET  : 0x%llx\n", PHYS_OFFSET);
 	pr_notice("    start memory  : 0x%llx\n",
 		memblock_start_of_DRAM());
