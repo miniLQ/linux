@@ -2037,18 +2037,22 @@ static void __init free_unused_memmap(void)
 	}
 #endif
 }
-
+/* 加入伙伴系统*/
 static void __init __free_pages_memory(unsigned long start, unsigned long end)
 {
 	int order;
+	int count=0;
 
 	while (start < end) {
 		order = min(MAX_ORDER - 1UL, __ffs(start));
 
 		while (start + (1UL << order) > end)
 			order--;
-
-		memblock_free_pages(pfn_to_page(start), start, order);
+	    count++;
+		if (count%10==0) {
+			pr_info("---__free_page_memory:start=0x%llx,order=%ld, ffs()=%ld\n",start, order, __ffs(start));
+		}
+		memblock_free_pages(pfn_to_page(start), start, order); ///添加2^order个页到伙伴系统
 
 		start += (1UL << order);
 	}
@@ -2064,7 +2068,7 @@ static unsigned long __init __free_memory_core(phys_addr_t start,
 	if (start_pfn >= end_pfn)
 		return 0;
 
-	__free_pages_memory(start_pfn, end_pfn);
+	__free_pages_memory(start_pfn, end_pfn);  ///加入伙伴系统
 
 	return end_pfn - start_pfn;
 }
@@ -2106,7 +2110,7 @@ static unsigned long __init free_low_memory_core_early(void)
 	 */
 	for_each_free_mem_range(i, NUMA_NO_NODE, MEMBLOCK_NONE, &start, &end,
 				NULL)
-		count += __free_memory_core(start, end);
+		count += __free_memory_core(start, end);  ///加入伙伴系统
 
 	return count;
 }
@@ -2144,7 +2148,7 @@ void __init memblock_free_all(void)
 	free_unused_memmap();
 	reset_all_zones_managed_pages();
 
-	pages = free_low_memory_core_early();
+	pages = free_low_memory_core_early(); ///page加入伙伴系统
 	totalram_pages_add(pages);
 }
 

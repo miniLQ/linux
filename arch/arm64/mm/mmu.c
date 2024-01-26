@@ -707,7 +707,7 @@ static void __init map_kernel(pgd_t *pgdp)
 		 * live in the carveout for the swapper_pg_dir. We can simply
 		 * re-use the existing dir for the fixmap.
 		 */
-		set_pgd(pgd_offset_pgd(pgdp, FIXADDR_START),         ///将init_pg_dir的表项同步到swapper_pg_dir
+		set_pgd(pgd_offset_pgd(pgdp, FIXADDR_START),         ///将init_pg_dir(可以访问fixmap映射)的表项同步到swapper_pg_dir
 			READ_ONCE(*pgd_offset_k(FIXADDR_START)));
 	} else if (CONFIG_PGTABLE_LEVELS > 3) {
 		pgd_t *bm_pgdp;
