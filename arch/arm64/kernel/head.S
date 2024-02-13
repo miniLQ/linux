@@ -236,7 +236,7 @@ SYM_CODE_END(preserve_boot_args)
  * ptrs：页表项的个数；
  * istart：vstart索引值；
  * iend:vend索引值；
- * count
+ * count:页表项个数
  **************************************************************/
 
 	.macro compute_indices, vstart, vend, shift, ptrs, istart, iend, count

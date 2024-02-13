@@ -670,7 +670,7 @@ struct zone {
 	/* Zone statistics */
 	atomic_long_t		vm_stat[NR_VM_ZONE_STAT_ITEMS]; ///zone计数值
 	atomic_long_t		vm_numa_event[NR_VM_NUMA_EVENT_ITEMS];
-} ____cacheline_internodealigned_in_smp;
+} ____cacheline_internodealigned_in_smp;  ///高频调用数据，以L1高速缓存对齐
 
 enum pgdat_flags {
 	PGDAT_DIRTY,			/* reclaim scanning has recently found
