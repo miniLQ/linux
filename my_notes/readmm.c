@@ -53,7 +53,7 @@ struct page *alloc_pages(gfp_t gfp, unsigned int order)
 <mm/page_alloc.c>
 unsigned long __get_free_pages(gfp_t gfp_mask, unsigned int order)
 
-分配一个一个物理页面
+分配一个物理页面
 alloc_page(gfp_mask)
 __get_free_page(gfp_mask)
 返回全零页面

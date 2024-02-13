@@ -70,7 +70,7 @@ struct mem_cgroup;
  * page描述一个物理页面
  */
 struct page {
-	unsigned long flags;		/* Atomic flags, some possibly ///页面重要的标志集合
+	unsigned long flags;		/* Atomic flags, some possibly ///页面重要的标志集合,包括node编号等
 					 * updated asynchronously */
 	/*
 	 * Five words (20/40 bytes) are available in this union.
@@ -79,7 +79,7 @@ struct page {
 	 * avoid collision and false-positive PageTail().
 	 */
 	union {
-		struct {	/* Page cache and anonymous pages */
+		struct {	/* Page cache and anonymous pages */  ///管理匿名页和文件页
 			/**
 			 * @lru: Pageout list, eg. active_list protected by
 			 * lruvec->lru_lock.  Sometimes used as a generic list
@@ -87,7 +87,7 @@ struct page {
 			 */
 			struct list_head lru;                                 ///page加入lru链表
 			/* See page-flags.h for PAGE_MAPPING_FLAGS */
-			struct address_space *mapping;                        ///页面指向的地址空间
+			struct address_space *mapping;                        ///页面指向的地址空间,文件页/匿名页共用
 			pgoff_t index;		/* Our offset within mapping. */  ///页面在映射空间的偏移量
 			/**
 			 * @private: Mapping-private opaque data.
@@ -119,7 +119,7 @@ struct page {
 				atomic_long_t pp_frag_count;
 			};
 		};
-		struct {	/* slab, slob and slub */
+		struct {	/* slab, slob and slub */ ///管理slab
 			union {
 				struct list_head slab_list;
 				struct {	/* Partial pages */
@@ -200,7 +200,7 @@ struct page {
 		 * If the page can be mapped to userspace, encodes the number
 		 * of times this page is referenced by a page table.
 		 */
-		atomic_t _mapcount;
+		atomic_t _mapcount;  ///统计进程映射的个数
 
 		/*
 		 * If the page is neither PageSlab nor mappable to userspace,
@@ -215,7 +215,7 @@ struct page {
 	};
 
 	/* Usage count. *DO NOT USE DIRECTLY*. See page_ref.h */
-	atomic_t _refcount;
+	atomic_t _refcount;  ///引用计数,0:空闲页，或可以即将被释放页; 大于0:正在被使用
 
 #ifdef CONFIG_MEMCG
 	unsigned long memcg_data;

@@ -14,7 +14,7 @@
  *  Per cpu hot/cold page lists, bulk allocation, Martin J. Bligh, Sept 2002
  *          (lots of bits borrowed from Ingo Molnar & Andrew Morton)
  */
-//#define DEBUG //打开本模块的pr_debug
+#define DEBUG //打开本模块的pr_debug
 #include <linux/stddef.h>
 #include <linux/mm.h>
 #include <linux/highmem.h>
@@ -7567,7 +7567,7 @@ static void __init free_area_init_core(struct pglist_data *pgdat)
 			if (freesize >= memmap_pages) {
 				freesize -= memmap_pages;
 				if (memmap_pages)
-					pr_debug("  %s zone: %lu pages used for memmap\n",
+					pr_debug("---  %s zone: %lu pages used for memmap\n",
 						 zone_names[j], memmap_pages);
 			} else
 				pr_warn("  %s zone: %lu memmap pages exceeds freesize %lu\n",
@@ -7598,6 +7598,9 @@ static void __init free_area_init_core(struct pglist_data *pgdat)
 			continue;
 
 		set_pageblock_order();
+		///设置页块MIGRATE_TYPES类型,操作页块MIGRATE_TYPES类型函数
+		///get_pageblock_migratetype
+		///set_pageblock_migratetype
 		setup_usemap(zone);
 		///初始化free_area域
 		init_currently_empty_zone(zone, zone->zone_start_pfn, size);
@@ -7688,6 +7691,7 @@ static void __init free_area_init_node(int nid)
 	///计算spanned_pages, present_pages成员值
 	calculate_node_totalpages(pgdat, start_pfn, end_pfn);
 
+	///分配mem_map空间
 	alloc_node_mem_map(pgdat);
 	pgdat_set_deferred_range(pgdat);
 
@@ -8047,7 +8051,7 @@ bool __weak arch_has_descending_max_zone_pfns(void)
  * starts where the previous one ended. For example, ZONE_DMA32 starts
  * at arch_max_dma_pfn.
  */
-///计算每个zone能管理的页面数
+///计算每个zone管理的页面
 void __init free_area_init(unsigned long *max_zone_pfn)
 {
 	unsigned long start_pfn, end_pfn;
