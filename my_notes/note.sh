@@ -256,3 +256,32 @@ gdb-multiarch --tui vmlinux
 (gdb)target remote localhost:1234
 (gdb)b start_kernel
 (gdb)c
+
+
+
+ftrace调试却页异常
+
+cd /sys/kernel/debug/tracing
+
+echo 0 > tracing_on
+
+echo > trace
+
+echo function > current_tracer
+
+echo blk_update_request > set_ftrace_filter
+
+echo 1 > options/func_stack_trace
+
+echo blk_update_request > set_graph_function 
+echo function_graph > current_tracer 
+echo 1 > options/func_stack_trace 
+echo 1 > tracing_on 
+cat /cpu.info 
+
+
+
+
+
+
+

@@ -1,4 +1,4 @@
-KERNEL_DIR ?= ~/work/my-linux
+KERNEL_DIR ?= ../../
 obj-m := kdemo.o
 CFLAG := -Wall -Wno-error 
 modules:

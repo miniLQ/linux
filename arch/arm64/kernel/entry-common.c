@@ -402,6 +402,7 @@ asmlinkage void noinstr el1h_64_sync_handler(struct pt_regs *regs)
 {
 	unsigned long esr = read_sysreg(esr_el1);
 
+printk("---esr:0x%x, at line-%d\n",ESR_ELx_EC(esr),__LINE__);
 	switch (ESR_ELx_EC(esr)) {   ///读取esr_el1的EC域，判断异常类型
 	case ESR_ELx_EC_DABT_CUR:  ///0x25，表示来自当前的异常等级的数据异常
 	case ESR_ELx_EC_IABT_CUR:
