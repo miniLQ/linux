@@ -2404,7 +2404,7 @@ static struct vm_struct *__get_vm_area_node(unsigned long size,
 	struct vm_struct *area;
 	unsigned long requested_size = size;
 
-	BUG_ON(in_interrupt());
+	BUG_ON(in_interrupt());   ///判断中断上下文,vmalloc可能睡眠
 	size = ALIGN(size, 1ul << shift);
 	if (unlikely(!size))
 		return NULL;
@@ -2417,9 +2417,10 @@ static struct vm_struct *__get_vm_area_node(unsigned long size,
 	if (unlikely(!area))
 		return NULL;
 
-	if (!(flags & VM_NO_GUARD))
+	if (!(flags & VM_NO_GUARD))  ///添加guard-page
 		size += PAGE_SIZE;
 
+	///获得未使用空间,“hole”
 	va = alloc_vmap_area(size, align, start, end, node, gfp_mask);
 	if (IS_ERR(va)) {
 		kfree(area);
@@ -2861,7 +2862,7 @@ vm_area_alloc_pages(gfp_t gfp, int nid,
 
 	while (nr_allocated < nr_pages) {
 		if (nid == NUMA_NO_NODE)
-			page = alloc_pages(gfp, order);
+			page = alloc_pages(gfp, order);  ///按每个页分配，映射
 		else
 			page = alloc_pages_node(nid, gfp, order);
 		if (unlikely(!page))
