@@ -2340,7 +2340,7 @@ static void rmap_walk_anon(struct page *page, struct rmap_walk_control *rwc,
 
 		if (rwc->invalid_vma && rwc->invalid_vma(vma, rwc->arg))
 			continue;
-		///断开用户pte页表项
+		///断开用户pte页表项,接触映射
 		if (!rwc->rmap_one(page, vma, address, rwc->arg))   
 			break;
 		if (rwc->done && rwc->done(page))

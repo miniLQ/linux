@@ -334,8 +334,8 @@ static void activate_page(struct page *page)
 		local_lock(&lru_pvecs.lock);
 		pvec = this_cpu_ptr(&lru_pvecs.activate_page);
 		get_page(page);
-		if (pagevec_add_and_need_flush(pvec, page))
-			pagevec_lru_move_fn(pvec, __activate_page);
+		if (pagevec_add_and_need_flush(pvec, page))     ///加入页向量组
+			pagevec_lru_move_fn(pvec, __activate_page); ///从不活跃链表移除
 		local_unlock(&lru_pvecs.lock);
 	}
 }
@@ -428,15 +428,16 @@ void mark_page_accessed(struct page *page)
 		 * pagevec, mark it active and it'll be moved to the active
 		 * LRU on the next drain.
 		 */
-		 ///页面被访问，但不是活跃，将访问位清零，加入到活跃链表
+		 ///页面被访问,且referenced不为0，但不是活跃，将访问位清零，加入到活跃链表
+
 		 ///加入到活跃链表：
-		 ///   如果page在当前在lru，先从原来lru删除，再加入也向量组，等待激活;
+		 ///   如果page在当前在lru(inactive)，先从原来lru删除，再加入也向量组，等待激活;
 		 ///   如果page在页向量组, 激活标志位，将来会加入活跃链表
 		if (PageLRU(page))
 			activate_page(page);
 		else
-			__lru_cache_activate_page(page);
-		ClearPageReferenced(page);
+			__lru_cache_activate_page(page);   ///设置活跃标记
+		ClearPageReferenced(page);  ///清除referenced=0
 		workingset_activation(page);
 	}
 	if (page_is_idle(page))
