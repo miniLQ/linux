@@ -2382,12 +2382,16 @@ static void rmap_walk_file(struct page *page, struct rmap_walk_control *rwc,
 	if (!mapping)
 		return;
 
+	///page->index
 	pgoff_start = page_to_pgoff(page);
 	pgoff_end = pgoff_start + thp_nr_pages(page) - 1;
 	if (!locked)
 		i_mmap_lock_read(mapping);
+
+	///遍历page映射的所有vma
 	vma_interval_tree_foreach(vma, &mapping->i_mmap,
 			pgoff_start, pgoff_end) {
+		///找到vma，计算相应地址
 		unsigned long address = vma_address(page, vma);
 
 		VM_BUG_ON_VMA(address == -EFAULT, vma);
@@ -2396,6 +2400,7 @@ static void rmap_walk_file(struct page *page, struct rmap_walk_control *rwc,
 		if (rwc->invalid_vma && rwc->invalid_vma(vma, rwc->arg))
 			continue;
 
+		///解除page映射
 		if (!rwc->rmap_one(page, vma, address, rwc->arg))
 			goto done;
 		if (rwc->done && rwc->done(page))

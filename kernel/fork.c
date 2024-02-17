@@ -596,6 +596,7 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 				mapping_allow_writable(mapping);
 			flush_dcache_mmap_lock(mapping);
 			/* insert tmp into the share list, just after mpnt */
+			///vma添加到地址空间的红黑树
 			vma_interval_tree_insert_after(tmp, mpnt,
 					&mapping->i_mmap);
 			flush_dcache_mmap_unlock(mapping);

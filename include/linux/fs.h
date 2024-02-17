@@ -457,8 +457,8 @@ int pagecache_write_end(struct file *, struct address_space *mapping,
  * @private_data: For use by the owner of the address_space.
  */
 struct address_space {
-	struct inode		*host;
-	struct xarray		i_pages;
+	struct inode		*host;   ///文件inode
+	struct xarray		i_pages; ///pagecache页
 	struct rw_semaphore	invalidate_lock;
 	gfp_t			gfp_mask;
 	atomic_t		i_mmap_writable;
@@ -466,11 +466,11 @@ struct address_space {
 	/* number of thp, only for non-shmem files */
 	atomic_t		nr_thps;
 #endif
-	struct rb_root_cached	i_mmap;
+	struct rb_root_cached	i_mmap;  ///存放所有映射pagecache的vma
 	struct rw_semaphore	i_mmap_rwsem;
 	unsigned long		nrpages;
 	pgoff_t			writeback_index;
-	const struct address_space_operations *a_ops;
+	const struct address_space_operations *a_ops;  ///文件操作函数
 	unsigned long		flags;
 	errseq_t		wb_err;
 	spinlock_t		private_lock;
@@ -634,7 +634,7 @@ struct inode {
 
 	const struct inode_operations	*i_op;
 	struct super_block	*i_sb;
-	struct address_space	*i_mapping;
+	struct address_space	*i_mapping;   ///指向映射的地址空间
 
 #ifdef CONFIG_SECURITY
 	void			*i_security;
@@ -705,7 +705,7 @@ struct inode {
 		void (*free_inode)(struct inode *);
 	};
 	struct file_lock_context	*i_flctx;
-	struct address_space	i_data;
+	struct address_space	i_data;  //实际分配的address_space
 	struct list_head	i_devices;
 	union {
 		struct pipe_inode_info	*i_pipe;
@@ -968,7 +968,7 @@ struct file {
 		struct rcu_head 	fu_rcuhead;
 	} f_u;
 	struct path		f_path;
-	struct inode		*f_inode;	/* cached value */
+	struct inode		*f_inode;	/* cached value */  ///指向inode
 	const struct file_operations	*f_op;
 
 	/*
@@ -997,7 +997,7 @@ struct file {
 	/* Used by fs/eventpoll.c to link all the hooks to this file */
 	struct hlist_head	*f_ep;
 #endif /* #ifdef CONFIG_EPOLL */
-	struct address_space	*f_mapping;
+	struct address_space	*f_mapping;   ///inode映射的地址空间
 	errseq_t		f_wb_err;
 	errseq_t		f_sb_err; /* for syncfs */
 } __randomize_layout

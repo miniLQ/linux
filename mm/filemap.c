@@ -885,6 +885,7 @@ noinline int __add_to_page_cache_locked(struct page *page,
 	mapping_set_update(&xas, mapping);
 
 	get_page(page);
+	///建立pagecache到地址空间映射
 	page->mapping = mapping;
 	page->index = offset;
 
@@ -1937,6 +1938,7 @@ no_page:
 		if (fgp_flags & FGP_NOFS)
 			gfp_mask &= ~__GFP_FS;
 
+		///分配一个page，并读入文件内容, 用于pagecache
 		page = __page_cache_alloc(gfp_mask);
 		if (!page)
 			return NULL;
@@ -1948,6 +1950,7 @@ no_page:
 		if (fgp_flags & FGP_ACCESSED)
 			__SetPageReferenced(page);
 
+		///page加入lru链表
 		err = add_to_page_cache_lru(page, mapping, index, gfp_mask);
 		if (unlikely(err)) {
 			put_page(page);
@@ -3054,6 +3057,7 @@ vm_fault_t filemap_fault(struct vm_fault *vmf)
 	/*
 	 * Do we have something in the page cache already?
 	 */
+	 ///如果pagecache已经存在，直接获取
 	page = find_get_page(mapping, offset);
 	if (likely(page)) {
 		/*
@@ -3061,6 +3065,7 @@ vm_fault_t filemap_fault(struct vm_fault *vmf)
 		 * the lock.
 		 */
 		if (!(vmf->flags & FAULT_FLAG_TRIED))
+			///直接读到pagecache
 			fpin = do_async_mmap_readahead(vmf, page);
 		if (unlikely(!PageUptodate(page))) {
 			filemap_invalidate_lock_shared(mapping);
@@ -3081,6 +3086,7 @@ retry_find:
 			filemap_invalidate_lock_shared(mapping);
 			mapping_locked = true;
 		}
+		///pagecache不存在，分配一个
 		page = pagecache_get_page(mapping, offset,
 					  FGP_CREAT|FGP_FOR_MMAP,
 					  vmf->gfp_mask);
@@ -3156,6 +3162,7 @@ page_not_uptodate:
 	 * and we need to check for errors.
 	 */
 	fpin = maybe_unlock_mmap_for_io(vmf, fpin);
+	///读文件内容到pagecache
 	error = filemap_read_page(file, mapping, page);
 	if (fpin)
 		goto out_retry;

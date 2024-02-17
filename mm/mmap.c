@@ -669,6 +669,7 @@ static void __vma_link_file(struct vm_area_struct *vma)
 			mapping_allow_writable(mapping);
 
 		flush_dcache_mmap_lock(mapping);
+		///mmap文件的vma加入文件inode的红黑树
 		vma_interval_tree_insert(vma, &mapping->i_mmap);
 		flush_dcache_mmap_unlock(mapping);
 	}
@@ -695,6 +696,7 @@ static void vma_link(struct mm_struct *mm, struct vm_area_struct *vma,
 	}
 
 	__vma_link(mm, vma, prev, rb_link, rb_parent);
+	///vma添加到inode红黑树
 	__vma_link_file(vma);
 
 	if (mapping)
@@ -1786,6 +1788,8 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 		}
 
 		vma->vm_file = get_file(file);
+		///读文件数据函数与vma相关联,当缺页异常时，回调文件函数读内容到pagecache
+		///比如ext4_file_mmap->.fault=ext4_filemap_fault
 		error = call_mmap(file, vma);
 		if (error)
 			goto unmap_and_free_vma;
