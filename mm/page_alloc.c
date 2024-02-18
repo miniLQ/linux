@@ -4952,6 +4952,7 @@ static inline struct page *
 __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 						struct alloc_context *ac)
 {
+	///是否支持直接回收，GFP_KERNEL,GFP_HIGHUSER_MOVABLE等
 	bool can_direct_reclaim = gfp_mask & __GFP_DIRECT_RECLAIM;
 	const bool costly_order = order > PAGE_ALLOC_COSTLY_ORDER;
 	struct page *page = NULL;
@@ -4968,6 +4969,7 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 	 * We also sanity check to catch abuse of atomic reserves being used by
 	 * callers that are not in atomic context.
 	 */
+	 ///检查__GFP_ATOMIC,用在中断上下文，优先级较高，检查是否滥用
 	if (WARN_ON_ONCE((gfp_mask & (__GFP_ATOMIC|__GFP_DIRECT_RECLAIM)) ==
 				(__GFP_ATOMIC|__GFP_DIRECT_RECLAIM)))
 		gfp_mask &= ~__GFP_ATOMIC;
@@ -4983,6 +4985,7 @@ retry_cpuset:
 	 * kswapd needs to be woken up, and to avoid the cost of setting up
 	 * alloc_flags precisely. So we do that now.
 	 */
+	 ///因为低水位分配失败，才走到这里，修改标志为最低水位线，后面重新尝试分配
 	alloc_flags = gfp_to_alloc_flags(gfp_mask);
 
 	/*
@@ -4991,6 +4994,7 @@ retry_cpuset:
 	 * there was a cpuset modification and we are retrying - otherwise we
 	 * could end up iterating over non-eligible zones endlessly.
 	 */
+	 ///重新选择优先zone
 	ac->preferred_zoneref = first_zones_zonelist(ac->zonelist,
 					ac->highest_zoneidx, ac->nodemask);
 	if (!ac->preferred_zoneref->zone)
@@ -5022,7 +5026,10 @@ retry_cpuset:
 			(costly_order ||
 			   (order > 0 && ac->migratetype != MIGRATE_MOVABLE))
 			&& !gfp_pfmemalloc_allowed(gfp_mask)) {
-		///进行页面规整
+		///进行页面规整,异步模式,触发条件：
+		///允许直接回收
+		///高成本，大order页分配需求
+		///不能访问系统预留内存
 		page = __alloc_pages_direct_compact(gfp_mask, order,
 						alloc_flags, ac,
 						INIT_COMPACT_PRIORITY,
@@ -5068,8 +5075,10 @@ retry_cpuset:
 retry:
 	/* Ensure kswapd doesn't accidentally go to sleep as long as we loop */
 	if (alloc_flags & ALLOC_KSWAPD)
+		///唤醒kswapd内核线程
 		wake_all_kswapds(order, gfp_mask, ac);
 
+	///修改分配属性，可以分配系统预留内存
 	reserve_flags = __gfp_pfmemalloc_flags(gfp_mask);
 	if (reserve_flags)
 		alloc_flags = gfp_to_alloc_flags_cma(gfp_mask, reserve_flags);
@@ -5085,6 +5094,7 @@ retry:
 					ac->highest_zoneidx, ac->nodemask);
 	}
 
+	///kswapd工作后，再尝试分配
 	/* Attempt with potentially adjusted zonelist and alloc_flags */
 	page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
 	if (page)
@@ -5123,6 +5133,7 @@ retry:
 	if (costly_order && !(gfp_mask & __GFP_RETRY_MAYFAIL))
 		goto nopage;
 
+	///重试直接内存回收,会增加no_progress_loops计数
 	if (should_reclaim_retry(gfp_mask, order, ac, alloc_flags,
 				 did_some_progress > 0, &no_progress_loops))
 		goto retry;
@@ -5133,6 +5144,7 @@ retry:
 	 * implementation of the compaction depends on the sufficient amount
 	 * of free memory (see __compaction_suitable)
 	 */
+	 ///是否重新内存规整
 	if (did_some_progress > 0 &&
 			should_compact_retry(ac, order, alloc_flags,
 				compact_result, &compact_priority,
@@ -5208,6 +5220,7 @@ nopage:
 		goto retry;
 	}
 fail:
+///所有分配尝试都失败，打印函数调用栈，系统信息
 	warn_alloc(gfp_mask, ac->nodemask,
 			"page allocation failure: order:%u", order);
 got_pg:
