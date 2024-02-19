@@ -5225,7 +5225,8 @@ void scheduler_tick(void)
 
 	rq_lock(rq, &rf);
 
-	update_rq_clock(rq);    ///更新当前CPU就绪队列rq中的时钟计数clock和clock_task
+	///更新当前CPU就绪队列rq中的时钟计数clock和clock_task
+	update_rq_clock(rq);    
 	thermal_pressure = arch_scale_thermal_pressure(cpu_of(rq));
 	update_thermal_load_avg(rq_clock_thermal(rq), rq, thermal_pressure);
 
@@ -5244,7 +5245,8 @@ void scheduler_tick(void)
 
 #ifdef CONFIG_SMP
 	rq->idle_balance = idle_cpu(cpu);
-	trigger_load_balance(rq); ///触发SMP负载均衡机制
+	///触发SMP负载均衡机制
+	trigger_load_balance(rq);
 #endif
 }
 
@@ -6289,7 +6291,7 @@ static void __sched notrace __schedule(unsigned int sched_mode)
 	///preempt发生抢占调度，直接获取进程
 	///从就绪队列获取合适进程
 	next = pick_next_task(rq, prev, &rf);
-        ///清除调度标记,保证本进程不会被调度
+    ///清除调度标记,保证本进程不会被调度
 	clear_tsk_need_resched(prev);
 	clear_preempt_need_resched();
 #ifdef CONFIG_SCHED_DEBUG

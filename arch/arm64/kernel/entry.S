@@ -722,6 +722,7 @@ SYM_DATA_END(__entry_tramp_data_start)
  *
  */
 SYM_FUNC_START(cpu_switch_to)
+	///找到cpu_context在task_struct中偏移
 	mov	x10, #THREAD_CPU_CONTEXT
 	add	x8, x0, x10
 	mov	x9, sp
@@ -741,11 +742,11 @@ SYM_FUNC_START(cpu_switch_to)
 	ldp	x29, x9, [x8], #16
 	ldr	lr, [x8]
 	mov	sp, x9
-	msr	sp_el0, x1  ///当前进程地址放在sp_el0
+	msr	sp_el0, x1  ///当前进程task_struct地址放在sp_el0
 	ptrauth_keys_install_kernel x1, x8, x9, x10
 	scs_save x0
 	scs_load x1
-	ret              ///返回值，切换前执行的task_struct
+	ret              ///返回值:切换前执行的task_struct
 SYM_FUNC_END(cpu_switch_to)
 NOKPROBE(cpu_switch_to)
 

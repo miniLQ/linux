@@ -1649,6 +1649,7 @@ struct task_struct {
 	randomized_struct_fields_end
 
 	/* CPU-specific state of this task: */
+	///保存switch_to时，进程的硬件上下文
 	struct thread_struct		thread;
 
 	/*
