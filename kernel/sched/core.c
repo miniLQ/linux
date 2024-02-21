@@ -5245,7 +5245,7 @@ void scheduler_tick(void)
 
 #ifdef CONFIG_SMP
 	rq->idle_balance = idle_cpu(cpu);
-	///触发SMP负载均衡机制
+	///触发SMP负载均衡机制,每个始终tick都会检查是否需要负载均衡
 	trigger_load_balance(rq);
 #endif
 }

@@ -4475,7 +4475,8 @@ check_preempt_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 
 	///实际运行时间>理论运行时间，时间片用完，需要调度
 	if (delta_exec > ideal_runtime) {
-		resched_curr(rq_of(cfs_rq)); ///设置调度标记TIF_NEED_RESCHED
+		///设置调度标记TIF_NEED_RESCHED
+		resched_curr(rq_of(cfs_rq)); 
 		/*
 		 * The current task ran long enough, ensure it doesn't get
 		 * re-elected due to buddy favours.
@@ -4630,6 +4631,7 @@ entity_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr, int queued)
 	/*
 	 * Update run-time statistics of the 'current'.
 	 */
+	 ///更新当前进程vruntime和就绪队列的min_vruntime
 	update_curr(cfs_rq);
 
 	/*
@@ -11419,10 +11421,12 @@ int alloc_fair_sched_group(struct task_group *tg, struct task_group *parent)
 	struct cfs_rq *cfs_rq;
 	int i;
 
-	///cfs_rq是指针数组，分配nr_cpu_ids个cfs_rq
+	///cfs_rq是指针数组
 	tg->cfs_rq = kcalloc(nr_cpu_ids, sizeof(cfs_rq), GFP_KERNEL);
 	if (!tg->cfs_rq)
 		goto err;
+
+	///se是指针数组
 	tg->se = kcalloc(nr_cpu_ids, sizeof(se), GFP_KERNEL);
 	if (!tg->se)
 		goto err;
