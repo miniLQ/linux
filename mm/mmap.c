@@ -1404,6 +1404,7 @@ static inline bool file_mmap_ok(struct file *file, struct inode *inode,
 /*
  * The caller must write-lock current->mm->mmap_lock.
  */
+ ///mmap底层实现
 unsigned long do_mmap(struct file *file, unsigned long addr,
 			unsigned long len, unsigned long prot,
 			unsigned long flags, unsigned long pgoff,
@@ -1451,6 +1452,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	/* Obtain the address to map to. we verify (or select) it and ensure
 	 * that it represents a valid section of the address space.
 	 */
+	 ///找到一个未被使用，并且足够大的虚拟地址空间
 	addr = get_unmapped_area(file, addr, len, pgoff, flags);
 	if (IS_ERR_VALUE(addr))
 		return addr;
@@ -1470,6 +1472,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	 * to. we assume access permissions have been handled by the open
 	 * of the memory object, so we don't do any here.
 	 */
+	 ///设置内存属性
 	vm_flags = calc_vm_prot_bits(prot, pkey) | calc_vm_flag_bits(flags) |
 			mm->def_flags | VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC;
 
@@ -1481,6 +1484,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 		return -EAGAIN;
 
 	if (file) {
+		///如果是文件映射,找到inode,作进一步检查
 		struct inode *inode = file_inode(file);
 		unsigned long flags_mask;
 

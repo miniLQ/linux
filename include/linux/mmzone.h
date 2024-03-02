@@ -108,6 +108,7 @@ struct free_area {
 	unsigned long		nr_free;
 };
 
+///获取链表第一个页
 static inline struct page *get_page_from_free_area(struct free_area *area,
 					    int migratetype)
 {
@@ -588,9 +589,18 @@ struct zone {
 	 * mem_hotplug_begin/end(). Any reader who can't tolerant drift of
 	 * present_pages should get_online_mems() to get a stable value.
 	 */
-	atomic_long_t		managed_pages;   ///zone中被伙伴系统管理的页面数量
-	unsigned long		spanned_pages;   ///zone包含的页面数量
-	unsigned long		present_pages;   ///zone实际管理的页面数量
+/*
+managed_pages: zone中被伙伴系统管理的页面数量
+spanned_pages:zone跨越总页数，包括空洞
+present_pages:zone实际管理的页面数量(物理页,不含空洞)
+
+spanned_pages =  zone_end_pfn - zone_start_pfn;
+present_pages = spanned_pages - holes_pages;
+managed_pages = present_pages - reserved_pages;
+*/
+	atomic_long_t		managed_pages;
+	unsigned long		spanned_pages;
+	unsigned long		present_pages;
 #if defined(CONFIG_MEMORY_HOTPLUG)
 	unsigned long		present_early_pages;
 #endif
@@ -766,6 +776,7 @@ enum {
  * This struct contains information about a zone in a zonelist. It is stored
  * here to avoid dereferences into large structures and lookups of tables
  */
+///一个实际的zone
 ///zone_idx，表示zone编号，0表示最低
 struct zoneref {
 	struct zone *zone;	/* Pointer to actual zone */
@@ -786,7 +797,7 @@ struct zoneref {
  * zonelist_zone_idx()	- Return the index of the zone for an entry
  * zonelist_node_idx()	- Return the index of the node for an entry
  */
-///该数组包含系统中各个node的各个zone的信息
+///该结构体包含一个node的各个zone的信息
 //zone的排列循序，由优先级决定
 ///每一个struct zoneref描述一个zone
 struct zonelist {
@@ -839,8 +850,9 @@ typedef struct pglist_data {
 	 * node_zones.
 	 */
 	///本node的备选节点，及内存区域列表
-	///MAX_ZONELISTS=2,ZONELIST_FALLBACK指向本地zone；
-	//ZONELIST_NOFALLBACK,指向远端的内存节点zone
+	///MAX_ZONELISTS=2,
+	///ZONELIST_FALLBACK: 指向本地zone；
+	//ZONELIST_NOFALLBACK: 指向远端的内存节点zone,用于numa系统
 	struct zonelist node_zonelists[MAX_ZONELISTS];
 
 	///本node， zone的个数

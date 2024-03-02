@@ -702,7 +702,8 @@ static inline bool pcp_allowed_order(unsigned int order)
 static inline void free_the_page(struct page *page, unsigned int order)
 {
 	if (pcp_allowed_order(order))		/* Via pcp? */
-		free_unref_page(page, order); ///释放单个页面，放回到单页面的PCP的链表中
+		///释放单个页面，放回到单页面的PCP的链表中
+		free_unref_page(page, order); 
 	else
 		///释放多页面
 		__free_pages_ok(page, order, FPI_NONE);
@@ -972,6 +973,7 @@ static inline void add_to_free_list(struct page *page, struct zone *zone,
 {
 	struct free_area *area = &zone->free_area[order];
 
+	///添加到对应free_area链表
 	list_add(&page->lru, &area->free_list[migratetype]);
 	area->nr_free++;
 }
@@ -1107,7 +1109,9 @@ continue_merging:
 			clear_page_guard(zone, buddy, order, migratetype);
 		else
 			del_page_from_free_list(buddy, zone, order);  ///从buddy摘出来
-		combined_pfn = buddy_pfn & pfn;			     ///合并buddy,继续查找是否可以继续合并, combined_pfn为合并后内存块的起始页帧号
+
+		///合并buddy,继续查找是否可以继续合并, combined_pfn为合并后内存块的起始页帧号
+		combined_pfn = buddy_pfn & pfn;			     
 		page = page + (combined_pfn - pfn);
 		pfn = combined_pfn;
 		order++;
@@ -2313,10 +2317,13 @@ static inline void expand(struct zone *zone, struct page *page,
 		 * Corresponding page table entries will not be touched,
 		 * pages will stay not present in virtual address space
 		 */
+		 ///设置page_guard
 		if (set_page_guard(zone, &page[size], high, migratetype))
 			continue;
 
+		///“切一半”，加入对应free_list链表中
 		add_to_free_list(&page[size], zone, high, migratetype);
+		///设置buddy标记
 		set_buddy_order(&page[size], high);
 	}
 }
@@ -2470,8 +2477,10 @@ struct page *__rmqueue_smallest(struct zone *zone, unsigned int order,
 		page = get_page_from_free_area(area, migratetype);
 		if (!page)
 			continue;
+        ///分配成功，将page从free_list删除
 		del_page_from_free_list(page, zone, current_order);
-		///实现分配,current_order > order
+		///实现分配page,current_order > order
+		///多余pages，放回伙伴系统
 		expand(zone, page, order, current_order, migratetype);
 		set_pcppage_migratetype(page, migratetype);
 		return page;
@@ -2928,9 +2937,12 @@ __rmqueue_fallback(struct zone *zone, int order, int start_migratetype,
 	 * approximates finding the pageblock with the most free pages, which
 	 * would be too costly to do exactly.
 	 */
+	 ///从最高阶开始获取?
 	for (current_order = MAX_ORDER - 1; current_order >= min_order;
 				--current_order) {
 		area = &(zone->free_area[current_order]);
+///当指定迁移类型所对应的链表中没有空闲内存时,
+///从其他迁移类型链表中寻找(静态定义的顺序,fallback_mt)
 		fallback_mt = find_suitable_fallback(area, current_order,
 				start_migratetype, false, &can_steal);
 		if (fallback_mt == -1)
@@ -2954,6 +2966,7 @@ __rmqueue_fallback(struct zone *zone, int order, int start_migratetype,
 	return false;
 
 find_smallest:
+///从当前order往高阶order尝试
 	for (current_order = order; current_order < MAX_ORDER;
 							current_order++) {
 		area = &(zone->free_area[current_order]);
@@ -2970,6 +2983,7 @@ find_smallest:
 	VM_BUG_ON(current_order == MAX_ORDER);
 
 do_steal:
+///从对应free_list获取一个页块
 	page = get_page_from_free_area(area, fallback_mt);
 
 	steal_suitable_fallback(zone, page, alloc_flags, start_migratetype,
@@ -3007,12 +3021,13 @@ __rmqueue(struct zone *zone, unsigned int order, int migratetype,
 		}
 	}
 retry:
+	///从当前order链表分配
 	page = __rmqueue_smallest(zone, order, migratetype);
 	if (unlikely(!page)) {
 		if (alloc_flags & ALLOC_CMA)
 			page = __rmqueue_cma_fallback(zone, order);
 
-		///从高order去切割
+		///从高order去"切割"
 		if (!page && __rmqueue_fallback(zone, order, migratetype,
 								alloc_flags))
 			goto retry;
@@ -3710,7 +3725,7 @@ struct page *rmqueue(struct zone *preferred_zone,
 	struct page *page;
 
 	///处理单个页的分配，
-	//每个zone都有个Per-CPU变量per_cpu_pages，该数据结构有一个但页面链表，
+	//每个zone都有个Per-CPU变量per_cpu_pages，该数据结构有一个单页面链表，
 	//当申请分配单个页面时，从这个物理链表直接获取，可以减少对锁的依赖；
 	if (likely(pcp_allowed_order(order))) {
 		/*
@@ -3731,7 +3746,7 @@ struct page *rmqueue(struct zone *preferred_zone,
 	 */
 	WARN_ON_ONCE((gfp_flags & __GFP_NOFAIL) && (order > 1));
 	
-	///处理order大于0情况，先获取zone的锁
+	///处理order大于0情况，先获取zone的锁,并关中断
 	spin_lock_irqsave(&zone->lock, flags);
 
 	do {
@@ -3743,13 +3758,13 @@ struct page *rmqueue(struct zone *preferred_zone,
 		 * request should skip it.
 		 */
 		if (order > 0 && alloc_flags & ALLOC_HARDER) {
-			///先从当前order链表中去切蛋糕
+			///先从当前order链表中去分配page
 			page = __rmqueue_smallest(zone, order, MIGRATE_HIGHATOMIC);
 			if (page)
 				trace_mm_page_alloc_zone_locked(page, order, migratetype);
 		}
 		if (!page)
-			///如果当前order切失败，从高order的可迁移，可回收链表中查找是否可以借用
+			///如果当前order分配失败，从高order的可迁移，可回收链表中查找是否可以借用
 			page = __rmqueue(zone, order, migratetype, alloc_flags);
 	} while (page && check_new_pages(page, order));///检查所有分配的页面是否合格
 	if (!page)
@@ -3758,6 +3773,7 @@ struct page *rmqueue(struct zone *preferred_zone,
 	///更新zone统计值NR_FREE_PAGES
 	__mod_zone_freepage_state(zone, -(1 << order),
 				  get_pcppage_migratetype(page));
+	///释放锁，恢复中断
 	spin_unlock_irqrestore(&zone->lock, flags);
 
 	__count_zid_vm_events(PGALLOC, page_zonenum(page), 1 << order);
@@ -3930,7 +3946,7 @@ bool __zone_watermark_ok(struct zone *z, unsigned int order, unsigned long mark,
 		if (!area->nr_free)
 			continue;
 
-		///从MIGRATE_UNMOVABLE到MIGRATE_RECLAIMABLE类型，有符合order分配需求
+		///从MIGRATE_UNMOVABLE到MIGRATE_RECLAIMABLE类型，发现符合order分配需求,就初步判断满足条件
 		//后续可以从迁移类型中挪用
 		for (mt = 0; mt < MIGRATE_PCPTYPES; mt++) {
 			if (!free_area_empty(area, mt))
@@ -3981,7 +3997,7 @@ static inline bool zone_watermark_fast(struct zone *z, unsigned int order,
 	 * need to be calculated.
 	 */
 	///针对申请单个page，做快速优化
-	//lowmem_reserve是每个zone预留的内存，为防止高端zone在内存不足时，过度使用地段zone内存资源
+	//lowmem_reserve是每个zone预留的内存，为防止高端zone在内存不足时，过度使用低端zone内存资源
 	if (!order) {
 		long fast_free;
 
@@ -4149,7 +4165,8 @@ retry:
 			}
 		}
 
-		///NUMA系统中，优先考虑的是内存节点本地性，而不是碎片化，本地内存速度远大于远端内存
+		///NUMA系统中，优先考虑的是内存节点本地性，而不是碎片化，
+		///本地内存速度远大于远端内存
 		if (no_fallback && nr_online_nodes > 1 &&
 		    zone != ac->preferred_zoneref->zone) {
 			int local_nid;
@@ -4160,6 +4177,7 @@ retry:
 			 * than fragmentation avoidance.
 			 */
 			local_nid = zone_to_nid(ac->preferred_zoneref->zone);
+			///判定访问远程zone,跳过,重试
 			if (zone_to_nid(zone) != local_nid) {
 				alloc_flags &= ~ALLOC_NOFRAGMENT;
 				goto retry;
@@ -4171,7 +4189,9 @@ retry:
 		//
 		//无法分配到连续大内存，就认为有碎片化倾向，会从其他迁移类型挪用内存
 		mark = wmark_pages(zone, alloc_flags & ALLOC_WMARK_MASK);
-		///返回true，表示满足最低水位或分配要求
+
+		///返回true，表示满足最低水位,且满足分配要求
+		///条件分支内容，为处理分配失败
 		if (!zone_watermark_fast(zone, order, mark,
 				       ac->highest_zoneidx, alloc_flags,
 				       gfp_mask)) {
@@ -5232,10 +5252,17 @@ static inline bool prepare_alloc_pages(gfp_t gfp_mask, unsigned int order,
 		struct alloc_context *ac, gfp_t *alloc_gfp,
 		unsigned int *alloc_flags)
 {
-	ac->highest_zoneidx = gfp_zone(gfp_mask);  ///计算zoneidx，表示允许内存分配的最高zoneidx
-	ac->zonelist = node_zonelist(preferred_nid, gfp_mask); ///指向首选内存节点对应的zonelist
-	ac->nodemask = nodemask;   ///内存节点掩码
-	ac->migratetype = gfp_migratetype(gfp_mask); ///迁移类型
+    ///计算zoneidx，表示允许内存分配的最高zoneidx
+	ac->highest_zoneidx = gfp_zone(gfp_mask);
+
+	///指向首选内存节点对应的zonelist
+	ac->zonelist = node_zonelist(preferred_nid, gfp_mask); 
+
+    ///内存节点掩码
+	ac->nodemask = nodemask;
+
+    ///迁移类型
+	ac->migratetype = gfp_migratetype(gfp_mask);
 
 	if (cpusets_enabled()) {
 		*alloc_gfp |= __GFP_HARDWALL;
@@ -5454,6 +5481,7 @@ struct page *__alloc_pages(gfp_t gfp, unsigned int order, int preferred_nid,
 	 * There are several places where we assume that the order value is sane
 	 * so bail out early if the request is out of bound.
 	 */
+	 ///伙伴系统分配最大内存块2^(max_order-1),默认4MB
 	if (unlikely(order >= MAX_ORDER)) {
 		WARN_ON_ONCE(!(gfp & __GFP_NOWARN));
 		return NULL;
