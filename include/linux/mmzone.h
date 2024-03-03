@@ -1347,10 +1347,13 @@ void subsection_map_init(unsigned long pfn, unsigned long nr_pages);
 struct page;
 struct page_ext;
 /*
- * struct mem_section **p ->struct mem_section *p ->struct page*
+ * struct mem_section **p ---> struct mem_section *p --->struct page*
+
  * struct mem_section**是一个全局二维指针，每个成员为struct mem_section数组；
+
  * 每个一级指针，指向一个页大小的物理内存，对应PAGE_SIZE/sizeof(struct mem_section)个mem_section
- * 二级指针，指向一个mem_section，其表达128M/4K个的struct page 
+
+ * 二级指针，指向一个mem_section数组，其表达128M/4K个的struct page 
  * 每个页框就是一个struct page
  */
 struct mem_section {
@@ -1366,6 +1369,7 @@ struct mem_section {
 	 * Making it a UL at least makes someone do a cast
 	 * before using it wrong.
 	 */
+	 ///struct page数组地址，等效于一个指向struct page数组的指针
 	unsigned long section_mem_map;
 
 	struct mem_section_usage *usage;

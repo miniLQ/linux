@@ -177,6 +177,8 @@ static u64 psi_period __read_mostly;
 
 /* System-level pressure and stall tracking */
 static DEFINE_PER_CPU(struct psi_group_cpu, system_group_pcpu);
+///相关任务组成一个group，针对group任务组计算psi
+///若不支持cgroup，实际上就一个PSI group
 struct psi_group psi_system = {
 	.pcpu = &system_group_pcpu,
 };
@@ -219,6 +221,7 @@ void __init psi_init(void)
 	if (!cgroup_psi_enabled())
 		static_branch_disable(&psi_cgroups_enabled);
 
+	///初始化统计结构，更新psi周期
 	psi_period = jiffies_to_nsecs(PSI_FREQ);
 	group_init(&psi_system);
 }
@@ -789,6 +792,7 @@ static void psi_flags_change(struct task_struct *task, int clear, int set)
 	task->psi_flags |= set;
 }
 
+///任务每次进出调度队列时调用
 void psi_task_change(struct task_struct *task, int clear, int set)
 {
 	int cpu = task_cpu(task);

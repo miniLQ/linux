@@ -1335,6 +1335,7 @@ struct task_struct {
 
 	struct task_io_accounting	ioac;
 #ifdef CONFIG_PSI
+	///PSI所处状态
 	/* Pressure stall state */
 	unsigned int			psi_flags;
 #endif
