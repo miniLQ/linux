@@ -296,6 +296,7 @@ ___update_load_avg(struct sched_avg *sa, unsigned long load)
  *   load_avg = \Sum se->avg.load_avg
  */
 
+///更新阻塞状态下的se调度实体平均负载
 int __update_load_avg_blocked_se(u64 now, struct sched_entity *se)
 {
 	if (___update_load_sum(now, &se->avg, 0, 0, 0)) {
@@ -307,6 +308,7 @@ int __update_load_avg_blocked_se(u64 now, struct sched_entity *se)
 	return 0;
 }
 
+///更新调度实体se的平均负载
 int __update_load_avg_se(u64 now, struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
 	if (___update_load_sum(now, &se->avg, !!se->on_rq, se_runnable(se),
@@ -321,6 +323,7 @@ int __update_load_avg_se(u64 now, struct cfs_rq *cfs_rq, struct sched_entity *se
 	return 0;
 }
 
+///更新CFS就绪队列的平均负载
 int __update_load_avg_cfs_rq(u64 now, struct cfs_rq *cfs_rq)
 {
 	if (___update_load_sum(now, &cfs_rq->avg,

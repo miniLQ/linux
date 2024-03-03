@@ -139,6 +139,7 @@ struct cgroup_file {
  * Fields marked with "PI:" are public and immutable and may be accessed
  * directly without synchronization.
  */
+ ///通用统计资源对象
 struct cgroup_subsys_state {
 	/* PI: the cgroup that this css is attached to */
 	struct cgroup *cgroup;
@@ -150,7 +151,9 @@ struct cgroup_subsys_state {
 	struct percpu_ref refcnt;
 
 	/* siblings list anchored at the parent's ->children */
+	///兄弟节点
 	struct list_head sibling;
+	///子节点
 	struct list_head children;
 
 	/* flush target list anchored at cgrp->rstat_css_list */
@@ -186,6 +189,7 @@ struct cgroup_subsys_state {
 	 * PI: the parent css.	Placed here for cache proximity to following
 	 * fields of the containing structure.
 	 */
+	 ///父节点
 	struct cgroup_subsys_state *parent;
 };
 
@@ -196,12 +200,14 @@ struct cgroup_subsys_state {
  * list_add()/del() can bump the reference count on the entire cgroup
  * set for a task.
  */
+ ///task_struct会指向这里
 struct css_set {
 	/*
 	 * Set of subsystem states, one for each subsystem. This array is
 	 * immutable after creation apart from the init_css_set during
 	 * subsystem registration (at boot time).
 	 */
+	 ///每个控制组，对应的资源统计对象
 	struct cgroup_subsys_state *subsys[CGROUP_SUBSYS_COUNT];
 
 	/* reference count */
@@ -228,6 +234,7 @@ struct css_set {
 	 * css_set_rwsem, but, during migration, once tasks are moved to
 	 * mg_tasks, it can be read safely while holding cgroup_mutex.
 	 */
+	 ///连接同cgroup下的所有进程
 	struct list_head tasks;
 	struct list_head mg_tasks;
 	struct list_head dying_tasks;

@@ -387,13 +387,17 @@ struct cfs_bandwidth {
 
 /* Task group related information */
 struct task_group {
+	///cgroup通用资源统计对象
 	struct cgroup_subsys_state css;
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	/* schedulable entities of this group on each CPU */
+	///数组指针，数组个数为CPU个数, 每个CPU都有一个本group的se
 	struct sched_entity	**se;
 	/* runqueue "owned" by this group on each CPU */
+	///本组在每个CPU上的cfs_rq
 	struct cfs_rq		**cfs_rq;
+	///group权重
 	unsigned long		shares;
 
 	/* A positive value indicates that this is a SCHED_IDLE group. */
@@ -405,6 +409,7 @@ struct task_group {
 	 * it in its own cacheline separated from the fields above which
 	 * will also be accessed at each tick.
 	 */
+	 ///本group负载
 	atomic_long_t		load_avg ____cacheline_aligned;
 #endif
 #endif

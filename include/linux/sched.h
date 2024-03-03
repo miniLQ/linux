@@ -501,6 +501,7 @@ struct sched_avg {
 	unsigned long			load_avg;
 	unsigned long			runnable_avg; ///在SMP负载均衡调度器中用于衡量CPU是否繁忙
 	
+	///用于EAS调度器和CPU调频
 	unsigned long			util_avg;///实际算力
 	struct util_est			util_est;
 } ____cacheline_aligned;
@@ -561,8 +562,10 @@ struct sched_entity {
 	int				depth;
 	struct sched_entity		*parent;
 	/* rq on which this entity is (to be) queued: */
+	///该se挂在到cfs_rq，指向parent->my_rq
 	struct cfs_rq			*cfs_rq;
 	/* rq "owned" by this entity/group: */
+	///本se的cfs_rq,只有group se才有cfs_rq，task_se为NULl
 	struct cfs_rq			*my_q;
 	/* cached value of my_q->h_nr_running */
 	unsigned long			runnable_weight;
@@ -863,6 +866,7 @@ struct task_struct {
 #endif
 
 #ifdef CONFIG_CGROUP_SCHED
+	///cgroup cpu资源统计对象
 	struct task_group		*sched_task_group;
 #endif
 
@@ -1357,8 +1361,10 @@ struct task_struct {
 #endif
 #ifdef CONFIG_CGROUPS
 	/* Control Group info protected by css_set_lock: */
+	///关联cgroup
 	struct css_set __rcu		*cgroups;
 	/* cg_list protected by css_set_lock and tsk->alloc_lock: */
+	///同一个cgroup/css_set，所有进程链表
 	struct list_head		cg_list;
 #endif
 #ifdef CONFIG_X86_CPU_RESCTRL
@@ -1567,6 +1573,7 @@ struct task_struct {
 	unsigned int			memcg_nr_pages_over_high;
 
 	/* Used by memcontrol for targeted memcg charge: */
+	///内存资源统计对象
 	struct mem_cgroup		*active_memcg;
 #endif
 

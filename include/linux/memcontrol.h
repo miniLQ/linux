@@ -235,6 +235,7 @@ struct obj_cgroup {
  * to help the administrator determine what knobs to tune.
  */
 struct mem_cgroup {
+	///资源统计对象
 	struct cgroup_subsys_state css;
 
 	/* Private memcg ID. Used to ID objects that outlive the cgroup */
