@@ -353,12 +353,14 @@ void calc_global_load(void)
 	long active, delta;
 
 	sample_window = READ_ONCE(calc_load_update);
+	///判断是否到统计时间
 	if (time_before(jiffies, sample_window + 10))
 		return;
 
 	/*
 	 * Fold the 'old' NO_HZ-delta to include all NO_HZ CPUs.
 	 */
+	 ///获取活跃进程个数
 	delta = calc_load_nohz_read();
 	if (delta)
 		atomic_long_add(delta, &calc_load_tasks);
@@ -366,6 +368,7 @@ void calc_global_load(void)
 	active = atomic_long_read(&calc_load_tasks);
 	active = active > 0 ? active * FIXED_1 : 0;
 
+///统计1/5/15分钟平均负载
 	avenrun[0] = calc_load(avenrun[0], EXP_1, active);
 	avenrun[1] = calc_load(avenrun[1], EXP_5, active);
 	avenrun[2] = calc_load(avenrun[2], EXP_15, active);
@@ -376,6 +379,7 @@ void calc_global_load(void)
 	 * In case we went to NO_HZ for multiple LOAD_FREQ intervals
 	 * catch up in bulk.
 	 */
+	 ///更新统计时间
 	calc_global_nohz();
 }
 
