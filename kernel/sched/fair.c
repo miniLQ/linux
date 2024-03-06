@@ -11476,6 +11476,7 @@ int alloc_fair_sched_group(struct task_group *tg, struct task_group *parent)
 			goto err_free_rq;
 
 		init_cfs_rq(cfs_rq);
+		///初始化组调度参数
 		init_tg_cfs_entry(tg, cfs_rq, se, i, parent->se[i]);
 		init_entity_runnable_average(se);
 	}
@@ -11548,6 +11549,7 @@ void init_tg_cfs_entry(struct task_group *tg, struct cfs_rq *cfs_rq,
 	if (!se)
 		return;
 
+///cfs_rq指向系统CPU的cfs_rq
 	if (!parent) {
 		se->cfs_rq = &rq->cfs;
 		se->depth = 0;
@@ -11556,6 +11558,7 @@ void init_tg_cfs_entry(struct task_group *tg, struct cfs_rq *cfs_rq,
 		se->depth = parent->depth + 1;
 	}
 
+	///my_q指向本组的cfs_rq
 	se->my_q = cfs_rq;
 	/* guarantee group entities always have weight */
 	update_load_set(&se->load, NICE_0_LOAD);

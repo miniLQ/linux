@@ -274,10 +274,15 @@ static __always_inline bool vmstat_item_in_bytes(int idx)
 #define LRU_FILE 2
 
 enum lru_list {
+	///不活跃匿名页链表
 	LRU_INACTIVE_ANON = LRU_BASE,
+	///活跃匿名页链表
 	LRU_ACTIVE_ANON = LRU_BASE + LRU_ACTIVE,
+	///不活跃文件映射页链表
 	LRU_INACTIVE_FILE = LRU_BASE + LRU_FILE,
+	///活跃文件映射页链表
 	LRU_ACTIVE_FILE = LRU_BASE + LRU_FILE + LRU_ACTIVE,
+	///不可回收页面链表
 	LRU_UNEVICTABLE,
 	NR_LRU_LISTS
 };
@@ -305,7 +310,8 @@ enum lruvec_flags {
 };
 
 struct lruvec {
-	struct list_head		lists[NR_LRU_LISTS]; ///LRU链表数组，每个内存节点都有5种类型LRU链表
+ ///LRU链表数组，每个内存节点都有5种类型LRU链表
+	struct list_head		lists[NR_LRU_LISTS];
 	/* per lruvec lru_lock for memcg */
 	spinlock_t			lru_lock;
 	/*
