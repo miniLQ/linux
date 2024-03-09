@@ -106,6 +106,8 @@ struct kmem_cache {
 	unsigned int usersize;		/* Usercopy region size */
 
 	///slab节点，在NUMA系统中，每个节点有一个kmem_cache_node数据结构
+	///kmem_cache_node,维护的对象是slab，
+	///array_cache维护的对象是slab的obj
 	struct kmem_cache_node *node[MAX_NUMNODES]; 
 };
 

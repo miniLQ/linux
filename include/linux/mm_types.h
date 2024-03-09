@@ -119,7 +119,8 @@ struct page {
 				atomic_long_t pp_frag_count;
 			};
 		};
-		struct {	/* slab, slob and slub */ ///管理slab
+		 ///管理slab,当flag设置PG-SLAB后，slab成员生效
+		struct {	/* slab, slob and slub */
 			union {
 				struct list_head slab_list;
 				struct {	/* Partial pages */
@@ -133,10 +134,15 @@ struct page {
 #endif
 				};
 			};
+			///指向slab的slab cache描述符
 			struct kmem_cache *slab_cache; /* not slob */
+
 			/* Double-word boundary */
+			///指向slab空闲obj的索引数组,与slab描述符的active成员搭配使用
+			///实际上存放slab中未使用的obj索引值
 			void *freelist;		/* first free object */
 			union {
+				///slab区域的第一个obj
 				void *s_mem;	/* slab: first object */
 				unsigned long counters;		/* SLUB */
 				struct {			/* SLUB */
@@ -210,6 +216,7 @@ struct page {
 		 */
 		unsigned int page_type;
 
+		///slab已经使用的obj数量
 		unsigned int active;		/* SLAB */
 		int units;			/* SLOB */
 	};

@@ -111,18 +111,15 @@ static struct memblock_region memblock_physmem_init_regions[INIT_PHYSMEM_REGIONS
 struct memblock memblock __initdata_memblock = {
 	///内存区域数组，存放在内核镜像的.meminit.data段
 	.memory.regions		= memblock_memory_init_regions,
-	///没有内存区域时，cnt=1
 	.memory.cnt		= 1,	/* empty dummy entry */
-	///系统预留memory类型，内存区域最大值128,不足可以补充
+	///系统预留memory类型，内存区域最大个数128,不足可以补充
 	.memory.max		= INIT_MEMBLOCK_REGIONS,
 	///memory类型内存区域管理器名字
 	.memory.name		= "memory",
 
-	///内存区域数组,存放在内核镜像的.meminit.data段
 	.reserved.regions	= memblock_reserved_init_regions,
-	///没有内存区域时，cnt=1
 	.reserved.cnt		= 1,	/* empty dummy entry */
-	///系统预留reserce类型，内存区域最大值128,不足可以补充
+	///系统预留reserved类型，内存区域最大值128+CPU个数+1,不足可以补充
 	.reserved.max		= INIT_MEMBLOCK_RESERVED_REGIONS,
 	///reserved类型内存区域管理器名字
 	.reserved.name		= "reserved",
@@ -348,6 +345,7 @@ again:
 
 static void __init_memblock memblock_remove_region(struct memblock_type *type, unsigned long r)
 {
+	///总大小减去要删除region大小
 	type->total_size -= type->regions[r].size;
 	memmove(&type->regions[r], &type->regions[r + 1],
 		(type->cnt - (r + 1)) * sizeof(type->regions[r]));
@@ -554,6 +552,7 @@ static void __init_memblock memblock_insert_region(struct memblock_type *type,
 	struct memblock_region *rgn = &type->regions[idx];
 
 	BUG_ON(type->cnt >= type->max);
+	///rgn后面的rgn都依次往后移动一个
 	memmove(rgn + 1, rgn, (type->cnt - idx) * sizeof(*rgn));
 	rgn->base = base;
 	rgn->size = size;
@@ -599,6 +598,7 @@ static int __init_memblock memblock_add_range(struct memblock_type *type,
 {
 	bool insert = false;
 	phys_addr_t obase = base;
+	///防止反转，end不超过最大值
 	phys_addr_t end = base + memblock_cap_size(base, &size);
 	int idx, nr_new;
 	struct memblock_region *rgn;
@@ -631,7 +631,7 @@ repeat:
 		phys_addr_t rend = rbase + rgn->size;
 
 		if (rbase >= end)
-			//情形1,结束
+			//情形1,跳出循环
 			break;
 		if (rend <= base)
 			//情形6，继续找下一块
@@ -820,6 +820,7 @@ static int __init_memblock memblock_remove_range(struct memblock_type *type,
 	int start_rgn, end_rgn;
 	int i, ret;
 
+///处理内存地址相交情况
 	ret = memblock_isolate_range(type, base, size, &start_rgn, &end_rgn);
 	if (ret)
 		return ret;
@@ -2148,7 +2149,8 @@ void __init memblock_free_all(void)
 	free_unused_memmap();
 	reset_all_zones_managed_pages();
 
-	pages = free_low_memory_core_early(); ///page加入伙伴系统
+    ///page加入伙伴系统
+	pages = free_low_memory_core_early();
 	totalram_pages_add(pages);
 }
 

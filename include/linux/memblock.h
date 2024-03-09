@@ -35,9 +35,13 @@ extern unsigned long long max_possible_pfn;
  * for further details
  */
 enum memblock_flags {
+	///没有特殊需求
 	MEMBLOCK_NONE		= 0x0,	/* No special request */
+	///该块支持热插拔
 	MEMBLOCK_HOTPLUG	= 0x1,	/* hotpluggable region */
+	///内存镜像
 	MEMBLOCK_MIRROR		= 0x2,	/* mirrored region */
+	///不能被kernel用于直接映射/线性映射
 	MEMBLOCK_NOMAP		= 0x4,	/* don't add to kernel direct mapping */
 };
 
@@ -49,8 +53,12 @@ enum memblock_flags {
  * @nid: NUMA node id
  */
 struct memblock_region {
+	///本region起始地址
 	phys_addr_t base;
+
+	///本region大小
 	phys_addr_t size;
+	///region的标记
 	enum memblock_flags flags;
 #ifdef CONFIG_NUMA
 	int nid;
@@ -66,10 +74,19 @@ struct memblock_region {
  * @name: the memory type symbolic name
  */
 struct memblock_type {
+	///本memblock_type包含regions个数
 	unsigned long cnt;
+
+	///本memblock_type包含regions最大个数
 	unsigned long max;
+	
+	///本memblock_type若有regions总的size
 	phys_addr_t total_size;
+
+	///regions数组
 	struct memblock_region *regions;
+
+	///本memblock_type名字
 	char *name;
 };
 
@@ -81,9 +98,16 @@ struct memblock_type {
  * @reserved: reserved memory regions
  */
 struct memblock {
+	///true:low to high
+	///false:high to low
 	bool bottom_up;  /* is bottom up direction? */
+
+	///内存块大小限制
 	phys_addr_t current_limit;
+
+	///可以被memblock管理分配的内存
 	struct memblock_type memory;
+	///预留已分配的空间
 	struct memblock_type reserved;
 };
 

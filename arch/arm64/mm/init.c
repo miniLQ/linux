@@ -238,6 +238,7 @@ early_param("mem", early_mem);
  * */
 void __init arm64_memblock_init(void)
 {
+	///计算虚拟地址可以覆盖的线性区域
 	s64 linear_region_size = PAGE_END - _PAGE_OFFSET(vabits_actual);
 
 	/*
@@ -254,12 +255,14 @@ void __init arm64_memblock_init(void)
 		linear_region_size = min_t(u64, linear_region_size, BIT(51));
 	}
 
+///移除实际物理地址以上的内存空间区域,比如VA_BITS=48,大于2^48以上地址，memblock不必存在
 	/* Remove memory above our supported physical address size */
 	memblock_remove(1ULL << PHYS_MASK_SHIFT, ULLONG_MAX);
 
 	/*
 	 * Select a suitable value for the base of physical memory.
 	 */
+	 ///物理地址起始地址,尚未memblock_add，此处为0
 	memstart_addr = round_down(memblock_start_of_DRAM(),
 				   ARM64_MEMSTART_ALIGN);
 
@@ -271,8 +274,10 @@ void __init arm64_memblock_init(void)
 	 * linear mapping. Take care not to clip the kernel which may be
 	 * high in memory.
 	 */
+	 ///移除线性映射以外的内存
 	memblock_remove(max_t(u64, memstart_addr + linear_region_size,
 			__pa_symbol(_end)), ULLONG_MAX);
+	///如果物理内存足够大，将虚拟地址无法覆盖的区域删除掉
 	if (memstart_addr + linear_region_size < memblock_end_of_DRAM()) {
 		/* ensure that memstart_addr remains sufficiently aligned */
 		memstart_addr = round_up(memblock_end_of_DRAM() - linear_region_size,
@@ -295,6 +300,7 @@ void __init arm64_memblock_init(void)
 	 * high up in memory, add back the kernel region that must be accessible
 	 * via the linear mapping.
 	 */
+	 ///如果limit被配置，根据meory_limit重新配置，一般不会配置
 	if (memory_limit != PHYS_ADDR_MAX) {
 		memblock_mem_limit_remove_map(memory_limit);
 		memblock_add(__pa_symbol(_text), (u64)(_end - _text));
@@ -323,6 +329,7 @@ void __init arm64_memblock_init(void)
 			"initrd not fully accessible via the linear mapping -- please check your bootloader ...\n")) {
 			phys_initrd_size = 0;
 		} else {
+			///如果initrd地址符合要求，重新加入memblock.memory，且reserved这块内存
 			memblock_remove(base, size); /* clear MEMBLOCK_ flags */
 			memblock_add(base, size);
 			memblock_reserve(base, size);
@@ -353,15 +360,20 @@ void __init arm64_memblock_init(void)
 	 * Register the kernel text, kernel data, initrd, and initial
 	 * pagetables with memblock.
 	 */
-	///将内核代码段设置为reserved类型
+	///将内核设置为reserved类型
+	///paging_init()后会释放
 	memblock_reserve(__pa_symbol(_stext), _end - _stext);
+
 	if (IS_ENABLED(CONFIG_BLK_DEV_INITRD) && phys_initrd_size) {
+		///计算initrd对应虚拟地址
 		/* the generic initrd code expects virtual addresses */
 		initrd_start = __phys_to_virt(phys_initrd_start);
 		initrd_end = initrd_start + phys_initrd_size;
 	}
 
-	///将dtb中的reserved-memory区域设置为reserved类型
+	///扫描dtb中的reserved-memory节点,将每个子结点添加到memblock.reserved，设置为reserved类型
+	///如果节点定义了nomap，会从memblock.memory删除，就像物理上没有这片内存
+	///cma具有reuseable属性，则不会从memblock.memory删除
 	early_init_fdt_scan_reserved_mem();
 
 	///ARM64中不需要高端内存，为了向前兼容，这里将高端内存的起始地址设置为物理内存的结束地址
@@ -405,6 +417,7 @@ void __init bootmem_init(void)
 	 */
 	///sparse内存模型初始化；
 	sparse_init();
+
 	///初始化zone数据结构
 	zone_sizes_init(min, max);
 

@@ -1354,12 +1354,14 @@ struct page;
 struct page_ext;
 /*
  * struct mem_section **p ---> struct mem_section *p --->struct page*
-
  * struct mem_section**是一个全局二维指针，每个成员为struct mem_section数组；
 
- * 每个一级指针，指向一个页大小的物理内存，对应PAGE_SIZE/sizeof(struct mem_section)个mem_section
+ * 每个一级指针，指向一个页物理内存，对应PAGE_SIZE/sizeof(struct mem_section)个struct mem_section
+ * 配置48bit,30的系统，section最大个数2^30, 每一个section大小2^(48-30)=1G
+ * 一级指针个数=2^30/(SECTIONS_PER_ROOT)
+ * #define SECTIONS_PER_ROOT       (PAGE_SIZE / sizeof (struct mem_section))
 
- * 二级指针，指向一个mem_section数组，其表达128M/4K个的struct page 
+ * 二级指针，每个成员指向一个mem_section，其表达1G/4K个的struct page 
  * 每个页框就是一个struct page
  */
 struct mem_section {
@@ -1425,7 +1427,10 @@ static inline struct mem_section *__nr_to_section(unsigned long nr)
 	if (!mem_section[SECTION_NR_TO_ROOT(nr)])
 		return NULL;
 	///一维的偏移是nr/(PAGE/sizeof(struct mem_section))
+	///SECTION_NR_TO_ROOT(nr):nr在第几个struct mem_section[]数组
+
 	///二维偏移是nr&(PAGE/sizeof(mem_section*) - 1)
+	///nr & SECTION_ROOT_MASK:nr在某个struct mem_section[]数组中的第几个struct mem_section
 	return &mem_section[SECTION_NR_TO_ROOT(nr)][nr & SECTION_ROOT_MASK];
 }
 extern size_t mem_section_usage_size(void);

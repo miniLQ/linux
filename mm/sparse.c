@@ -79,6 +79,7 @@ static noinline struct mem_section __ref *sparse_index_alloc(int nid)
 	return section;
 }
 
+///进一步动态创建
 static int __meminit sparse_index_init(unsigned long section_nr, int nid)
 {
 	unsigned long root = SECTION_NR_TO_ROOT(section_nr);
@@ -282,6 +283,7 @@ static void __init memory_present(int nid, unsigned long start, unsigned long en
  * This is a convenience function that is useful to mark all of the systems
  * memory as present during initialization.
  */
+ ///所有memblocks标记为present
 static void __init memblocks_present(void)
 {
 	unsigned long start, end;
