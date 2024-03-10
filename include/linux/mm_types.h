@@ -95,6 +95,15 @@ struct page {
 			 * Used for swp_entry_t if PageSwapCache.
 			 * Indicates order in the buddy system if PageBuddy.
 			 */
+/* swap缺页异常时，保存换出页标识符
+ * 页标识符定义
+ * arch/arm64/include/asm/pgtable.h
+ * Encode and decode a swap entry:
+ *  bits 0-1:   present (must be zero)
+ *  bits 2-7:   swap type
+ *  bits 8-57:  swap offset
+ *  bit  58:    PTE_PROT_NONE (must be zero)
+ */
 			unsigned long private;
 		};
 		struct {	/* page_pool used by netstack */
