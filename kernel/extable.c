@@ -45,6 +45,7 @@ void __init sort_main_extable(void)
 const
 struct exception_table_entry *search_kernel_exception_table(unsigned long addr)
 {
+	///搜索异常表
 	return search_extable(__start___ex_table,
 			      __stop___ex_table - __start___ex_table, addr);
 }

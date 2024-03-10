@@ -359,6 +359,7 @@ static void __do_kernel_fault(unsigned long addr, unsigned int esr,
 	 * Are we prepared to handle this kernel fault?
 	 * We are almost certainly not prepared to handle instruction faults.
 	 */
+	 ///指令异常，搜索异常表
 	if (!is_el1_instruction_abort(esr) && fixup_exception(regs))
 		return;
 
@@ -530,7 +531,8 @@ static int __kprobes do_page_fault(unsigned long far, unsigned int esr,
 	/*
 	 * If we're in an interrupt or have no user context, we must not take
 	 * the fault.
-	 */  ///检查异常发生时的路径, 若不合条件，直接跳转no_context，出错处理
+	 */  
+	 ///检查异常发生时的路径, 若不合条件，直接跳转no_context，出错处理
 	if (faulthandler_disabled() || !mm)  ///是否关闭缺页中断，是否在中断上下文，是否内核空间，内核进程的mm总是NULL
 		goto no_context;
 
@@ -563,9 +565,10 @@ static int __kprobes do_page_fault(unsigned long far, unsigned int esr,
 	///判断是否为用户空间，是否EL1权限错误，都满足时，表明处于少见的特殊情况，直接报错处理
 	if (is_ttbr0_addr(addr) && is_el1_permission_fault(addr, esr, regs)) {
 		if (is_el1_instruction_abort(esr))
+			///指令错误
 			die_kernel_fault("execution of user memory",
 					 addr, esr, regs);
-
+		///数据异常，搜索异常表
 		if (!search_exception_tables(regs->pc))
 			die_kernel_fault("access to user memory outside uaccess routines",
 					 addr, esr, regs);
@@ -577,7 +580,8 @@ static int __kprobes do_page_fault(unsigned long far, unsigned int esr,
 	 * As per x86, we may deadlock here. However, since the kernel only
 	 * validly references user space from well defined areas of the code,
 	 * we can bug out early if this is from code which shouldn't.
-	 */   ///执行到这里，可以断定缺页异常没有发生在中断上下文，没有发生在内核线程，以及一些特殊情况；接下来检查由于地址空间引发的缺页异常
+	 */   
+	 ///执行到这里，可以断定缺页异常没有发生在中断上下文，没有发生在内核线程，以及一些特殊情况；接下来检查由于地址空间引发的缺页异常
 	if (!mmap_read_trylock(mm)) {
 		if (!user_mode(regs) && !search_exception_tables(regs->pc))
 			goto no_context;
@@ -599,8 +603,10 @@ retry:
 	///进一步处理缺页以异常
 	fault = __do_page_fault(mm, addr, mm_flags, vm_flags, regs);
 
+///有挂起致命信号
 	/* Quick path to respond to signals */
 	if (fault_signal_pending(fault, regs)) {
+		///内核空间
 		if (!user_mode(regs))
 			goto no_context;
 		return 0;
