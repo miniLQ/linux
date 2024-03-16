@@ -2142,6 +2142,7 @@ void __init reset_all_zones_managed_pages(void)
 /**
  * memblock_free_all - release free pages to the buddy allocator
  */
+ ///释放所有物理页，加入伙伴系统
 void __init memblock_free_all(void)
 {
 	unsigned long pages;

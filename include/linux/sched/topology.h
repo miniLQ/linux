@@ -184,7 +184,9 @@ struct sd_data {
 };
 
 struct sched_domain_topology_level {
+	///指定某个SDTL的cpumask位图
 	sched_domain_mask_f mask;
+	///指定某个SDTL标志位
 	sched_domain_flags_f sd_flags;
 	int		    flags;
 	int		    numa_level;
