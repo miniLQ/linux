@@ -176,6 +176,7 @@ typedef int (*sched_domain_flags_f)(void);
 
 #define SDTL_OVERLAP	0x01
 
+///调度域，调度组，调度组能力，均为percpu变量
 struct sd_data {
 	struct sched_domain *__percpu *sd;
 	struct sched_domain_shared *__percpu *sds;
