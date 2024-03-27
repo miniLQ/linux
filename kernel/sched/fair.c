@@ -6850,6 +6850,7 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu)
 	 * Energy-aware wake-up happens on the lowest sched_domain starting
 	 * from sd_asym_cpucapacity spanning over this_cpu and prev_cpu.
 	 */
+	 ///获取调度域，共享L2高速缓存
 	sd = rcu_dereference(*this_cpu_ptr(&sd_asym_cpucapacity));
 	while (sd && !cpumask_test_cpu(prev_cpu, sched_domain_span(sd)))
 		sd = sd->parent;
@@ -6858,20 +6859,24 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu)
 
 	target = prev_cpu;
 
+	///更新进程block负载
 	sync_entity_load_avg(&p->se);
-	if (!task_util_est(p))
+	if (!task_util_est(p)) ///获取进程实际算力，util_avg
 		goto unlock;
 
+///遍历性能域
 	for (; pd; pd = pd->next) {
 		unsigned long cur_delta, spare_cap, max_spare_cap = 0;
 		bool compute_prev_delta = false;
 		unsigned long base_energy_pd;
 		int max_spare_cap_cpu = -1;
 
+		///遍历性能域的每个CPU
 		for_each_cpu_and(cpu, perf_domain_span(pd), sched_domain_span(sd)) {
 			if (!cpumask_test_cpu(cpu, p->cpus_ptr))
 				continue;
 
+			///预算迁移到该CPU后，实际负载
 			util = cpu_util_next(cpu, p, cpu);
 			cpu_cap = capacity_of(cpu);
 			spare_cap = cpu_cap;
@@ -6885,6 +6890,7 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu)
 			 * aligned with sched_cpu_util().
 			 */
 			util = uclamp_rq_util_with(cpu_rq(cpu), util, p);
+			///CPU负载达到最大80%，就不选
 			if (!fits_capacity(util, cpu_cap))
 				continue;
 
@@ -6905,7 +6911,7 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu)
 			continue;
 
 		/* Compute the 'base' energy of the pd, without @p */
-		base_energy_pd = compute_energy(p, -1, pd);
+		base_energy_pd = compute_energy(p, -1, pd);  ///预算功耗
 		base_energy += base_energy_pd;
 
 		/* Evaluate the energy impact of using prev_cpu. */
@@ -6914,7 +6920,7 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu)
 			if (prev_delta < base_energy_pd)
 				goto unlock;
 			prev_delta -= base_energy_pd;
-			best_delta = min(best_delta, prev_delta);
+			best_delta = min(best_delta, prev_delta);  ///选择功耗最小的
 		}
 
 		/* Evaluate the energy impact of using max_spare_cap_cpu. */

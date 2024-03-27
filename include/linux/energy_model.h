@@ -19,9 +19,9 @@
  *		energy calculation. Equal to: power * max_frequency / frequency
  */
 struct em_perf_state {
-	unsigned long frequency;
-	unsigned long power;
-	unsigned long cost;
+	unsigned long frequency;  ///频点kHz
+	unsigned long power;      ///频点对应的功耗值mW
+	unsigned long cost;       ///方便计算的能效系数 cost = power*max_freq/freq；
 };
 
 /**
@@ -42,10 +42,10 @@ struct em_perf_state {
  * field is unused.
  */
 struct em_perf_domain {
-	struct em_perf_state *table;
-	int nr_perf_states;
+	struct em_perf_state *table; ///保存各级算力信息的表
+	int nr_perf_states;		     ///CPU的算力级数，一个频点对应一级算力
 	int milliwatts;
-	unsigned long cpus[];
+	unsigned long cpus[];		 ///当前pd的所有CPU core
 };
 
 #define em_span_cpus(em) (to_cpumask((em)->cpus))
