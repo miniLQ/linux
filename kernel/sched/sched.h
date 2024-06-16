@@ -1912,7 +1912,9 @@ static inline void set_task_rq(struct task_struct *p, unsigned int cpu)
 #endif
 
 #ifdef CONFIG_RT_GROUP_SCHED
+///cfs_rq，指向组就绪队列
 	p->rt.rt_rq  = tg->rt_rq[cpu];
+///parent，指向组调度实体
 	p->rt.parent = tg->rt_se[cpu];
 #endif
 }

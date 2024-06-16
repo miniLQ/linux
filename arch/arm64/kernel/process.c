@@ -337,7 +337,7 @@ int copy_thread(unsigned long clone_flags, unsigned long stack_start,
 	ptrauth_thread_init_kernel(p);
 
 	if (likely(!(p->flags & (PF_KTHREAD | PF_IO_WORKER)))) {
-		///子进程为用户进程
+		///子进程为用户线程
 		*childregs = *current_pt_regs();
 		childregs->regs[0] = 0;  ///子进程返回值
 
@@ -361,6 +361,7 @@ int copy_thread(unsigned long clone_flags, unsigned long stack_start,
 		if (clone_flags & CLONE_SETTLS)
 			p->thread.uw.tp_value = tls;
 	} else {
+		///子进程为内核线程
 		/*
 		 * A kthread has no context to ERET to, so ensure any buggy
 		 * ERET is treated as an illegal exception return.
@@ -371,6 +372,7 @@ int copy_thread(unsigned long clone_flags, unsigned long stack_start,
 		memset(childregs, 0, sizeof(struct pt_regs));
 		childregs->pstate = PSR_MODE_EL1h | PSR_IL_BIT;
 
+   ///x19内核线程回调函数
 		p->thread.cpu_context.x19 = stack_start;
 		p->thread.cpu_context.x20 = stk_sz;
 	}

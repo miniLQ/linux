@@ -5,7 +5,12 @@
 #include <linux/rculist.h>
 #include <linux/wait.h>
 #include <linux/refcount.h>
-
+/*
+ * PIDTYPE_PID,  进程PID作为字段
+ * PIDTYPE_TGID, 线程组组长PID
+ * PIDTYPE_PGID, 进程组组长PID
+ * PIDTYPE_SID,  会话组头进程PID
+ */
 enum pid_type
 {
 	PIDTYPE_PID,

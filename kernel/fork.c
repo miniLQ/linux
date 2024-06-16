@@ -1474,7 +1474,7 @@ static struct mm_struct *dup_mm(struct task_struct *tsk,
 	if (!mm)
 		goto fail_nomem;
 
-	///拷贝父进程内存描述符内容到子进程内存描述符，仅仅拷贝数据结构，而非内存数据
+	///拷贝父进程内存描述符内容到子进程内存描述符，仅仅拷贝数据结构，而非进程实际映射的物理页面数据
 	memcpy(mm, oldmm, sizeof(*mm));
 
    	///初始化子进程内存描述符，并分配子进程私有的pgd页面
@@ -2667,8 +2667,9 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	 */
 	trace_sched_process_fork(current, p);
 
-	///获取子进程pid
+	///获取子进程pid结构体
 	pid = get_task_pid(p, PIDTYPE_PID); 
+	///获取当前命名空间内部的pid
 	nr = pid_vnr(pid);
 
 	if (clone_flags & CLONE_PARENT_SETTID)
@@ -2688,12 +2689,14 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 		ptrace_event_pid(trace, pid);
 
 	///vfork，等待子进程调用exec()/exit()
+	///让子进程先运行
 	if (clone_flags & CLONE_VFORK) {
 		if (!wait_for_vfork_done(p, &vfork))
 			ptrace_event_pid(PTRACE_EVENT_VFORK_DONE, pid);
 	}
 
 	put_pid(pid);
+	///返回子进程pid
 	return nr;
 }
 

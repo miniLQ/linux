@@ -948,7 +948,7 @@ struct task_struct {
 	 * */
 	struct sched_info		sched_info;
 	/*
-	 * 系统中所有进程通过tasks组成一个链表;
+	 * 系统中所有进程通过tasks组成一个链表,双向环形链表;
 	 * 链表头是init_task, 即0号进程
 	 * next_task(): 遍历下一个进程
 	 * next_thread(): 遍历线程组的下一个线程
@@ -1116,7 +1116,8 @@ struct task_struct {
 	struct list_head		ptrace_entry;
 
 	/* PID/PID hash table linkage. */
-	struct pid			*thread_pid;	///进程pid哈希表，可以用来判断线程是否alive,进程退出,这个指针为NULL
+	///进程pid哈希表，可以用来判断线程是否alive,进程退出,这个指针为NULL
+	struct pid			*thread_pid;
 	struct hlist_node		pid_links[PIDTYPE_MAX];
 
 	///线程组中所有线程的链表
@@ -1661,7 +1662,7 @@ struct task_struct {
 	randomized_struct_fields_end
 
 	/* CPU-specific state of this task: */
-	///保存switch_to时，进程的硬件上下文
+	///switch_to时，保存进程的硬件上下文
 	struct thread_struct		thread;
 
 	/*
