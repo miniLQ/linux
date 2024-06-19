@@ -2966,10 +2966,17 @@ static inline void wp_page_reuse(struct vm_fault *vmf)
 	if (page)
 		page_cpupid_xchg_last(page, (1 << LAST_CPUPID_SHIFT) - 1);
 
-	flush_cache_page(vma, vmf->address, pte_pfn(vmf->orig_pte));  	   ///刷新缺页异常页面的高速缓存
-	entry = pte_mkyoung(vmf->orig_pte);                           	   ///设置PTE的AF位
-	entry = maybe_mkwrite(pte_mkdirty(entry), vma);               	   ///设置可写，置脏位
-	if (ptep_set_access_flags(vma, vmf->address, vmf->pte, entry, 1))  ///设置新PTE到实际页表中
+	///刷新缺页异常页面的高速缓存
+	flush_cache_page(vma, vmf->address, pte_pfn(vmf->orig_pte));  	  
+
+	///设置PTE的AF位
+	entry = pte_mkyoung(vmf->orig_pte);                           	   
+
+	///设置可写，置脏位
+	entry = maybe_mkwrite(pte_mkdirty(entry), vma);               	   
+
+	///设置新PTE到实际页表中
+	if (ptep_set_access_flags(vma, vmf->address, vmf->pte, entry, 1))  
 		update_mmu_cache(vma, vmf->address, vmf->pte);
 	pte_unmap_unlock(vmf->pte, vmf->ptl);
 	count_vm_event(PGREUSE);
@@ -2991,6 +2998,7 @@ static inline void wp_page_reuse(struct vm_fault *vmf)
  *   held to the old page, as well as updating the rmap.
  * - In any case, unlock the PTL and drop the reference we took to the old page.
  */
+ ///执行写时复制
 static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 {
 	struct vm_area_struct *vma = vmf->vma;
@@ -3016,6 +3024,7 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 		if (!new_page)
 			goto oom;
 
+		///旧页内容复制到new_page
 		if (!cow_user_page(new_page, old_page, vmf)) {
 			/*
 			 * COW failed, if the fault was solved by other,
@@ -3036,7 +3045,6 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 
 	__SetPageUptodate(new_page);   ///设置PG_uptodate, 表示内容有效
 	
-	///注册一个mmu_notifier，并告知系统使dd_page无效
 	mmu_notifier_range_init(&range, MMU_NOTIFY_CLEAR, 0, vma, mm,
 				vmf->address & PAGE_MASK,
 				(vmf->address & PAGE_MASK) + PAGE_SIZE);
@@ -3254,6 +3262,7 @@ static vm_fault_t wp_page_shared(struct vm_fault *vmf)
  * but allow concurrent faults), with pte both mapped and locked.
  * We return with mmap_lock still held, but pte unmapped and unlocked.
  */
+ ///写时复制总入口
 static vm_fault_t do_wp_page(struct vm_fault *vmf)
 	__releases(vmf->ptl)
 {
@@ -3302,6 +3311,8 @@ static vm_fault_t do_wp_page(struct vm_fault *vmf)
 			goto copy;
 		if (!trylock_page(page))
 			goto copy;
+		///不是ksm页面，并且只映射单个vma
+		///不做写时复制，直接修改页表为可写
 		if (PageKsm(page) || page_mapcount(page) != 1 || page_count(page) != 1) {
 			unlock_page(page);
 			goto copy;
@@ -3312,7 +3323,8 @@ static vm_fault_t do_wp_page(struct vm_fault *vmf)
 		 * it's dark out, and we're wearing sunglasses. Hit it.
 		 */
 		unlock_page(page);  
-		wp_page_reuse(vmf); ///PageAnon判断是否为匿名页面，且不为KSM匿名页面, 复用
+		///PageAnon判断是否为匿名页面，且不为KSM匿名页面, 单个映射, 复用
+		wp_page_reuse(vmf); 
 		return VM_FAULT_WRITE;
 	} else if (unlikely((vma->vm_flags & (VM_WRITE|VM_SHARED)) ==
 					(VM_WRITE|VM_SHARED))) {
@@ -3532,12 +3544,14 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 		goto out;
 
 	delayacct_set_flag(current, DELAYACCT_PF_SWAPIN);
-	page = lookup_swap_cache(entry, vma, vmf->address);  ///在swap_cache查找
+
+	///在swap_cache查找
+	page = lookup_swap_cache(entry, vma, vmf->address);  
 	swapcache = page;
 
 	if (!page) {  ///swap_cache没找到，新分配page，并加入swap_page
 		if (data_race(si->flags & SWP_SYNCHRONOUS_IO) &&
-		    __swap_count(entry) == 1) { ///需要启动慢速IO操作，此时根据局部性原理，还做预取动作来优化性能
+		    __swap_count(entry) == 1) { ///需要启动慢速IO操作，此时根据局部性原理，还可做预取动作来优化性能
 			/* skip swapcache */
 			page = alloc_page_vma(GFP_HIGHUSER_MOVABLE, vma,    ///分配page
 							vmf->address);
@@ -3556,11 +3570,14 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 				if (shadow)
 					workingset_refault(page, shadow);
 
-				lru_cache_add(page);   						///page加入swap_cache
+				///page加入swap_cache
+				lru_cache_add(page);   						
 
 				/* To provide entry to swap_readpage() */
 				set_page_private(page, entry.val);
-				swap_readpage(page, true);                 ///从swap文件读取数据到page
+
+				///从swap文件读取数据到page
+				swap_readpage(page, true);                 
 				set_page_private(page, 0);
 			}
 		} else {
@@ -3650,7 +3667,9 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 	inc_mm_counter_fast(vma->vm_mm, MM_ANONPAGES);   ///匿页也计数增加
 	dec_mm_counter_fast(vma->vm_mm, MM_SWAPENTS);    ///swap页面技术减少
 	pte = mk_pte(page, vma->vm_page_prot);           ///拼接页表项
-	if ((vmf->flags & FAULT_FLAG_WRITE) && reuse_swap_page(page, NULL)) { ///reuse_swap_page，只被当前vma使用，直接改为可写，不做写时复制
+	
+	///优化，reuse_swap_page，只被当前vma使用，直接改为可写，不做写时复制
+	if ((vmf->flags & FAULT_FLAG_WRITE) && reuse_swap_page(page, NULL)) { 
 		pte = maybe_mkwrite(pte_mkdirty(pte), vma);
 		vmf->flags &= ~FAULT_FLAG_WRITE;
 		ret |= VM_FAULT_WRITE;
@@ -3695,7 +3714,7 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 		put_page(swapcache);
 	}
 
-	if (vmf->flags & FAULT_FLAG_WRITE) {   ///处理私有匿名页
+	if (vmf->flags & FAULT_FLAG_WRITE) {   ///处理私有匿名页,比如换入fork时被换出的共享只读页
 		ret |= do_wp_page(vmf);            ///写时复制
 		if (ret & VM_FAULT_ERROR)
 			ret &= VM_FAULT_ERROR;
@@ -4274,7 +4293,7 @@ static vm_fault_t do_shared_fault(struct vm_fault *vmf)
 	/*
 	 * Check if the backing address space wants to know that the page is
 	 * about to become writable
-	 */ ///若定义了page_mkwrite，调用do_page_mkwrite通知进程地址空间，页面变成可写；若页面可写，进程需要等待这个页面的内容会写成功
+	 */ ///若定义了page_mkwrite，调用do_page_mkwrite通知进程地址空间，页面变成可写；若页面可写，进程需要等待这个页面的内容回写成功
 	if (vma->vm_ops->page_mkwrite) {
 		unlock_page(vmf->page);
 		tmp = do_page_mkwrite(vmf);
@@ -4544,6 +4563,7 @@ static vm_fault_t wp_huge_pud(struct vm_fault *vmf, pud_t orig_pud)
  * The mmap_lock may have been released depending on flags and our return value.
  * See filemap_fault() and __lock_page_or_retry().
  */
+ ///缺页异常通用部分代码
 static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
 {
 	pte_t entry;

@@ -72,6 +72,7 @@ static __always_inline enum lru_list page_lru(struct page *page)
 	if (PageUnevictable(page))
 		return LRU_UNEVICTABLE;
 
+	///默认放入不活跃链表
 	lru = page_is_file_lru(page) ? LRU_INACTIVE_FILE : LRU_INACTIVE_ANON;
 	if (PageActive(page))
 		lru += LRU_ACTIVE;
@@ -82,6 +83,7 @@ static __always_inline enum lru_list page_lru(struct page *page)
 static __always_inline void add_page_to_lru_list(struct page *page,
 				struct lruvec *lruvec)
 {
+	///获取page页面类型
 	enum lru_list lru = page_lru(page);
 
 	update_lru_size(lruvec, lru, page_zonenum(page), thp_nr_pages(page));

@@ -132,6 +132,7 @@ struct cpu_context {
 };
 
 struct thread_struct {
+	///switch_to时，保存x19-x31寄存器值
 	struct cpu_context	cpu_context;	/* cpu context */
 
 	/*

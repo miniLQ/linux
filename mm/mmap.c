@@ -1404,6 +1404,7 @@ static inline bool file_mmap_ok(struct file *file, struct inode *inode,
 /*
  * The caller must write-lock current->mm->mmap_lock.
  */
+ ///mmap底层实现
 unsigned long do_mmap(struct file *file, unsigned long addr,
 			unsigned long len, unsigned long prot,
 			unsigned long flags, unsigned long pgoff,
@@ -1451,6 +1452,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	/* Obtain the address to map to. we verify (or select) it and ensure
 	 * that it represents a valid section of the address space.
 	 */
+	 ///找到一个未被使用，并且足够大的虚拟地址空间
 	addr = get_unmapped_area(file, addr, len, pgoff, flags);
 	if (IS_ERR_VALUE(addr))
 		return addr;
@@ -1470,6 +1472,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	 * to. we assume access permissions have been handled by the open
 	 * of the memory object, so we don't do any here.
 	 */
+	 ///设置内存属性
 	vm_flags = calc_vm_prot_bits(prot, pkey) | calc_vm_flag_bits(flags) |
 			mm->def_flags | VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC;
 
@@ -1481,6 +1484,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 		return -EAGAIN;
 
 	if (file) {
+		///如果是文件映射,找到inode,作进一步检查
 		struct inode *inode = file_inode(file);
 		unsigned long flags_mask;
 
@@ -1924,13 +1928,16 @@ static unsigned long unmapped_area(struct vm_unmapped_area_info *info)
 	low_limit = info->low_limit + length;
 
 	/* Check if rbtree root looks promising */
+	///第一次分配虚拟内存时，红黑树是空的，说明内存充足，直接跳转check_highest
 	if (RB_EMPTY_ROOT(&mm->mm_rb))
 		goto check_highest;
 	vma = rb_entry(mm->mm_rb.rb_node, struct vm_area_struct, vm_rb);
-	if (vma->rb_subtree_gap < length)
+	///当前节点vma是否满足需求?
+	if (vma->rb_subtree_gap < length) 
 		goto check_highest;
 
 	while (true) {
+		///先从左子树开始找
 		/* Visit left subtree if it looks promising */
 		gap_end = vm_start_gap(vma);
 		if (gap_end >= low_limit && vma->vm_rb.rb_left) {
@@ -1952,6 +1959,7 @@ check_current:
 		    gap_end > gap_start && gap_end - gap_start >= length)
 			goto found;
 
+		///从右子树开始找
 		/* Visit right subtree if it looks promising */
 		if (vma->vm_rb.rb_right) {
 			struct vm_area_struct *right =
@@ -1963,6 +1971,7 @@ check_current:
 			}
 		}
 
+		///往上一层根子树找
 		/* Go back up the rbtree to find next candidate node */
 		while (true) {
 			struct rb_node *prev = &vma->vm_rb;
@@ -1982,6 +1991,7 @@ check_highest:
 	/* Check highest gap, which does not precede any rbtree node */
 	gap_start = mm->highest_vm_end;
 	gap_end = ULONG_MAX;  /* Only for VM_BUG_ON below */
+	///当前红黑树没找到，判断最后一个vma地址到最大地址，若仍然不满足，说明oom了，报错
 	if (gap_start > high_limit)
 		return -ENOMEM;
 
@@ -2013,6 +2023,7 @@ static unsigned long unmapped_area_topdown(struct vm_unmapped_area_info *info)
 	 * Adjust search limits by the desired length.
 	 * See implementation comment at top of unmapped_area().
 	 */
+	 ///从高地址开始遍历
 	gap_end = info->high_limit;
 	if (gap_end < length)
 		return -ENOMEM;
@@ -2154,6 +2165,7 @@ arch_get_unmapped_area(struct file *filp, unsigned long addr,
 	if (flags & MAP_FIXED)
 		return addr;
 
+///如果addr刚好空闲，且满足本次分配，返回首地址
 	if (addr) {
 		addr = PAGE_ALIGN(addr);
 		vma = find_vma_prev(mm, addr, &prev);
@@ -2163,6 +2175,7 @@ arch_get_unmapped_area(struct file *filp, unsigned long addr,
 			return addr;
 	}
 
+///不满足需求，初始化info，进一步扫描mmap映射区查找满足请求的内存
 	info.flags = 0;
 	info.length = len;
 	info.low_limit = mm->mmap_base;
@@ -2205,6 +2218,7 @@ arch_get_unmapped_area_topdown(struct file *filp, unsigned long addr,
 			return addr;
 	}
 
+///从高向低遍历
 	info.flags = VM_UNMAPPED_AREA_TOPDOWN;
 	info.length = len;
 	info.low_limit = max(PAGE_SIZE, mmap_min_addr);
@@ -2219,6 +2233,7 @@ arch_get_unmapped_area_topdown(struct file *filp, unsigned long addr,
 	 * can happen with large stack limits and large mmap()
 	 * allocations.
 	 */
+	 ///若从高低之开始分配失败，从低往高再分配一次
 	if (offset_in_page(addr)) {
 		VM_BUG_ON(addr != -ENOMEM);
 		info.flags = 0;

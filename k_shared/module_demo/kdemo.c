@@ -1,104 +1,127 @@
 #include <linux/module.h>
-#include <linux/kernel.h>
 #include <linux/fs.h>
-#include <linux/init.h>
-#include <linux/proc_fs.h>
-#include <linux/sched/task.h>
-#include <linux/seq_file.h>
-#include <linux/time.h>
-#include <linux/uaccess.h>
-#include <linux/cpumask.h>
-#include "../../../kernel/sched/sched.h"
 #include <linux/miscdevice.h>
+#include <linux/uaccess.h>
+#include <linux/slab.h>
+
+#define DEVICE_NAME "mm_test"
+#define MEM_SIZE (1024 * 1024) // 1MB
+#define TEST_KMALLOC  1
+
+struct page *g_page;
+static void *mm_test_buffer;
 
 
-#include "kdemo.h"
+static loff_t mm_test_llseek(struct file *file, loff_t offset, int whence) {
+    loff_t newpos;
 
-static int kdemo_open(struct inode *inode, struct file *filp)
-{
-	printk("---open kdemo.\n");
+    switch (whence) {
+        case SEEK_SET:
+            newpos = offset;
+            break;
+        case SEEK_CUR:
+            newpos = file->f_pos + offset;
+            break;
+        case SEEK_END:
+            newpos = MEM_SIZE + offset;
+            break;
+        default:
+            return -EINVAL;
+    }
 
-	return 0;
+    if (newpos < 0 || newpos > MEM_SIZE)
+        return -EINVAL;
+
+    file->f_pos = newpos;
+    return newpos;
 }
 
-static int kdemo_close(struct inode *inode, struct file *filp)
-{
-	return 0;
+static ssize_t mm_test_read(struct file *file, char __user *buf, size_t count, loff_t *ppos) {
+    if (*ppos >= MEM_SIZE)
+        return 0;
+
+    if (*ppos + count > MEM_SIZE)
+        count = MEM_SIZE - *ppos;
+
+    if (copy_to_user(buf, mm_test_buffer + *ppos, count))
+        return -EFAULT;
+
+    *ppos += count;
+    return count;
 }
 
-static ssize_t kdemo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
-{
-	printk("---write.\n");
-	
-	return 0;
+static ssize_t mm_test_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos) {
+    if (*ppos >= MEM_SIZE)
+        return -ENOSPC;
+
+    if (*ppos + count > MEM_SIZE)
+        count = MEM_SIZE - *ppos;
+
+    if (copy_from_user(mm_test_buffer + *ppos, buf, count))
+        return -EFAULT;
+
+    *ppos += count;
+    return count;
 }
 
-static ssize_t kdemo_read(struct file *file, char __user *ubuf, size_t count, loff_t *offs)
-{
-	printk("---read.\n");
-
-	return 0;
-}
-
-long kdemo_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
-{
-	return 0;
-}
-static loff_t kdemo_llseek(struct file *file, loff_t offset, int whence)
-{
-	return 0;
-}
-
-#ifdef FASYNC 
-static int kdemo_fasync (int fd, struct file *filp, int on)
-{
-	printk("driver: fasync\n");
-	return 0;
-}
-#endif
-
-static int kdemo_mmap(struct file *filp, struct vm_area_struct *vma)
-{
-	return 0 ;
-}
-static struct file_operations kdemo_fops = {
-	.owner			= THIS_MODULE,
-	.open			= kdemo_open,
-	.release		= kdemo_close,
-	.read 			= kdemo_read,
-	.write 			= kdemo_write,
-	.llseek  		= kdemo_llseek,
-#ifdef FASYNC
-	.fasync			= kdemo_fasync,
-#endif
-	.unlocked_ioctl	= kdemo_ioctl,
-	.mmap		= kdemo_mmap,
+static const struct file_operations mm_test_fops = {
+    .owner = THIS_MODULE,
+    .llseek = mm_test_llseek,
+    .read = mm_test_read,
+    .write = mm_test_write,
 };
 
-static struct miscdevice kdemo_miscdev = {
-	.minor  = MISC_DYNAMIC_MINOR,
-	.name   = "kdemo",
-	.fops   = &kdemo_fops,
+static struct miscdevice mm_test_misc_device = {
+    .minor = MISC_DYNAMIC_MINOR,
+    .name = DEVICE_NAME,
+    .fops = &mm_test_fops,
 };
 
-static int __init kdemo_init(void)
-{
-    printk("---kdemo_init\n");
-	if (misc_register(&kdemo_miscdev) < 0) {
-		printk("misc device register failed!\n");
-		return -EFAULT;
-	}
+static int __init mm_test_init(void) {
+    int ret;
+	unsigned long phys_addr;
 
-	return 0;
+#ifdef TEST_KMALLOC 
+//也可以直接用kmalloc分配1M,方便调试
+     mm_test_buffer = kmalloc(MEM_SIZE, GFP_KERNEL);
+
+#else
+ 	g_page =  alloc_pages(GFP_KERNEL, get_order(MEM_SIZE));
+	if (!g_page) {
+        printk(KERN_ERR "Failed to allocate memory\n");
+        return -ENOMEM;
+    }
+
+	phys_addr = page_to_phys(page);
+	// 映射为虚拟地址
+    mm_test_buffer = (unsigned long *)ioremap(phys_addr, MEM_SIZE);
+
+#endif
+	if (!mm_test_buffer)
+        return -ENOMEM;
+
+    memset(mm_test_buffer, 0, MEM_SIZE);
+
+    ret = misc_register(&mm_test_misc_device);
+    if (ret) {
+        kfree(mm_test_buffer);
+        return ret;
+    }
+
+    printk(KERN_INFO "mm_test device registered.\n");
+    return 0;
 }
- 
-static void __exit kdemo_exit(void)
-{
-    printk("---kdemo_exit\n");
-	misc_deregister(&kdemo_miscdev);
+
+static void __exit mm_test_exit(void) {
+    misc_deregister(&mm_test_misc_device);
+#ifdef TEST_KMALLOC 
+    kfree(mm_test_buffer);
+#else
+	//__free(g_page, MEM_SIZE>>12);
+#endif
+    printk(KERN_INFO "mm_test device unregistered.\n");
 }
- 
- 
-module_init(kdemo_init);
-module_exit(kdemo_exit);
+
+module_init(mm_test_init);
+module_exit(mm_test_exit);
 MODULE_LICENSE("GPL");

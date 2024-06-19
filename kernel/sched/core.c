@@ -5225,7 +5225,8 @@ void scheduler_tick(void)
 
 	rq_lock(rq, &rf);
 
-	update_rq_clock(rq);    ///更新当前CPU就绪队列rq中的时钟计数clock和clock_task
+	///更新当前CPU就绪队列rq中的时钟计数clock和clock_task
+	update_rq_clock(rq);    
 	thermal_pressure = arch_scale_thermal_pressure(cpu_of(rq));
 	update_thermal_load_avg(rq_clock_thermal(rq), rq, thermal_pressure);
 
@@ -5244,7 +5245,8 @@ void scheduler_tick(void)
 
 #ifdef CONFIG_SMP
 	rq->idle_balance = idle_cpu(cpu);
-	trigger_load_balance(rq); ///触发SMP负载均衡机制
+	///触发SMP负载均衡机制,每个始终tick都会检查是否需要负载均衡
+	trigger_load_balance(rq);
 #endif
 }
 
@@ -6289,7 +6291,7 @@ static void __sched notrace __schedule(unsigned int sched_mode)
 	///preempt发生抢占调度，直接获取进程
 	///从就绪队列获取合适进程
 	next = pick_next_task(rq, prev, &rf);
-        ///清除调度标记,保证本进程不会被调度
+    ///清除调度标记,保证本进程不会被调度
 	clear_tsk_need_resched(prev);
 	clear_preempt_need_resched();
 #ifdef CONFIG_SCHED_DEBUG
@@ -9868,16 +9870,22 @@ void sched_move_task(struct task_struct *tsk)
 	rq = task_rq_lock(tsk, &rf);
 	update_rq_clock(rq);
 
+	///判定进程是否正在运行
 	running = task_current(rq, tsk);
+	///进程是否在就绪队列或正在运行,on_rq
 	queued = task_on_rq_queued(tsk);
 
+	///就绪态，先把进程退出就绪态
 	if (queued)
 		dequeue_task(rq, tsk, queue_flags);
+	///正在运行，放回就绪态队列
 	if (running)
 		put_prev_task(rq, tsk);
 
+	///调用CFS调度类操作方法集, 将task加入group
 	sched_change_group(tsk, TASK_MOVE_GROUP);
 
+	///退出就绪队列的进程和组，重新加入就绪队列
 	if (queued)
 		enqueue_task(rq, tsk, queue_flags);
 	if (running) {
@@ -10008,6 +10016,7 @@ static void cpu_cgroup_attach(struct cgroup_taskset *tset)
 	struct cgroup_subsys_state *css;
 
 	cgroup_taskset_for_each(task, css, tset)
+	///将进程task放入组调度中
 		sched_move_task(task);
 }
 

@@ -108,6 +108,7 @@ struct free_area {
 	unsigned long		nr_free;
 };
 
+///获取链表第一个页
 static inline struct page *get_page_from_free_area(struct free_area *area,
 					    int migratetype)
 {
@@ -273,10 +274,15 @@ static __always_inline bool vmstat_item_in_bytes(int idx)
 #define LRU_FILE 2
 
 enum lru_list {
+	///不活跃匿名页链表
 	LRU_INACTIVE_ANON = LRU_BASE,
+	///活跃匿名页链表
 	LRU_ACTIVE_ANON = LRU_BASE + LRU_ACTIVE,
+	///不活跃文件映射页链表
 	LRU_INACTIVE_FILE = LRU_BASE + LRU_FILE,
+	///活跃文件映射页链表
 	LRU_ACTIVE_FILE = LRU_BASE + LRU_FILE + LRU_ACTIVE,
+	///不可回收页面链表
 	LRU_UNEVICTABLE,
 	NR_LRU_LISTS
 };
@@ -304,7 +310,8 @@ enum lruvec_flags {
 };
 
 struct lruvec {
-	struct list_head		lists[NR_LRU_LISTS]; ///LRU链表数组，每个内存节点都有5种类型LRU链表
+ ///LRU链表数组，每个内存节点都有5种类型LRU链表
+	struct list_head		lists[NR_LRU_LISTS];
 	/* per lruvec lru_lock for memcg */
 	spinlock_t			lru_lock;
 	/*
@@ -588,9 +595,18 @@ struct zone {
 	 * mem_hotplug_begin/end(). Any reader who can't tolerant drift of
 	 * present_pages should get_online_mems() to get a stable value.
 	 */
-	atomic_long_t		managed_pages;   ///zone中被伙伴系统管理的页面数量
-	unsigned long		spanned_pages;   ///zone包含的页面数量
-	unsigned long		present_pages;   ///zone实际管理的页面数量
+/*
+managed_pages: zone中被伙伴系统管理的页面数量
+spanned_pages:zone跨越总页数，包括空洞
+present_pages:zone实际管理的页面数量(物理页,不含空洞)
+
+spanned_pages =  zone_end_pfn - zone_start_pfn;
+present_pages = spanned_pages - holes_pages;
+managed_pages = present_pages - reserved_pages;
+*/
+	atomic_long_t		managed_pages;
+	unsigned long		spanned_pages;
+	unsigned long		present_pages;
 #if defined(CONFIG_MEMORY_HOTPLUG)
 	unsigned long		present_early_pages;
 #endif
@@ -766,6 +782,7 @@ enum {
  * This struct contains information about a zone in a zonelist. It is stored
  * here to avoid dereferences into large structures and lookups of tables
  */
+///一个实际的zone
 ///zone_idx，表示zone编号，0表示最低
 struct zoneref {
 	struct zone *zone;	/* Pointer to actual zone */
@@ -786,7 +803,7 @@ struct zoneref {
  * zonelist_zone_idx()	- Return the index of the zone for an entry
  * zonelist_node_idx()	- Return the index of the node for an entry
  */
-///该数组包含系统中各个node的各个zone的信息
+///该结构体包含一个node的各个zone的信息
 //zone的排列循序，由优先级决定
 ///每一个struct zoneref描述一个zone
 struct zonelist {
@@ -839,8 +856,9 @@ typedef struct pglist_data {
 	 * node_zones.
 	 */
 	///本node的备选节点，及内存区域列表
-	///MAX_ZONELISTS=2,ZONELIST_FALLBACK指向本地zone；
-	//ZONELIST_NOFALLBACK,指向远端的内存节点zone
+	///MAX_ZONELISTS=2,
+	///ZONELIST_FALLBACK: 指向本地zone；
+	//ZONELIST_NOFALLBACK: 指向远端的内存节点zone,用于numa系统
 	struct zonelist node_zonelists[MAX_ZONELISTS];
 
 	///本node， zone的个数
@@ -1335,10 +1353,15 @@ void subsection_map_init(unsigned long pfn, unsigned long nr_pages);
 struct page;
 struct page_ext;
 /*
- * struct mem_section **p ->struct mem_section *p ->struct page*
+ * struct mem_section **p ---> struct mem_section *p --->struct page*
  * struct mem_section**是一个全局二维指针，每个成员为struct mem_section数组；
- * 每个一级指针，指向一个页大小的物理内存，对应PAGE_SIZE/sizeof(struct mem_section)个mem_section
- * 二级指针，指向一个mem_section，其表达128M/4K个的struct page 
+
+ * 每个一级指针，指向一个页物理内存，对应PAGE_SIZE/sizeof(struct mem_section)个struct mem_section
+ * 配置48bit,30的系统，section最大个数2^30, 每一个section大小2^(48-30)=1G
+ * 一级指针个数=2^30/(SECTIONS_PER_ROOT)
+ * #define SECTIONS_PER_ROOT       (PAGE_SIZE / sizeof (struct mem_section))
+
+ * 二级指针，每个成员指向一个mem_section，其表达1G/4K个的struct page 
  * 每个页框就是一个struct page
  */
 struct mem_section {
@@ -1354,6 +1377,7 @@ struct mem_section {
 	 * Making it a UL at least makes someone do a cast
 	 * before using it wrong.
 	 */
+	 ///struct page数组地址，等效于一个指向struct page数组的指针
 	unsigned long section_mem_map;
 
 	struct mem_section_usage *usage;
@@ -1403,7 +1427,10 @@ static inline struct mem_section *__nr_to_section(unsigned long nr)
 	if (!mem_section[SECTION_NR_TO_ROOT(nr)])
 		return NULL;
 	///一维的偏移是nr/(PAGE/sizeof(struct mem_section))
+	///SECTION_NR_TO_ROOT(nr):nr在第几个struct mem_section[]数组
+
 	///二维偏移是nr&(PAGE/sizeof(mem_section*) - 1)
+	///nr & SECTION_ROOT_MASK:nr在某个struct mem_section[]数组中的第几个struct mem_section
 	return &mem_section[SECTION_NR_TO_ROOT(nr)][nr & SECTION_ROOT_MASK];
 }
 extern size_t mem_section_usage_size(void);

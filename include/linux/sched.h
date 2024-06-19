@@ -482,8 +482,8 @@ struct util_est {
 struct sched_avg {
 	u64				last_update_time;  		///上一次更新的时间点
 	
-	///1.对于调度实体，load_sum统计对象是调度实体在可运行状态下的累计衰减总时间
-	///2.对调度队列，load_sum=decay_sum_load统计"所有进程"的累计工作总负载(时间乘以权重)
+	///1.对于调度实体，load_sum统计对象是调度实体在可运行状态下的累计衰减总时间, 值为时间
+	///2.对调度队列，load_sum=decay_sum_load统计"所有进程"的累计工作总负载(时间乘以权重), 值为负载
 	u64				load_sum;	///对应量化负载	load_avg
 	
 	///调度实体：就绪队列里可运行状态下的累计总衰减时间decay_sum_time
@@ -494,13 +494,17 @@ struct sched_avg {
 	///2调度队列：所有处于正在运行状态的衰减总时间
 	u32				util_sum;  ///对应量化算力util_avg
 	
+	///上一次采样，不能凑成一个周期()的时间
 	u32				period_contrib;
 
-	///1.调度实体，相同；
-	///2.调度队列：load_avg，所有进程量化总负载；runnable_avg可运行状态量化总负载
+	///1.调度实体: 总量化负载，load_avg==runnable_avg；
+	///2.调度队列：
+	///           load_avg，所有进程量化总负载；
+	///           runnable_avg,可运行状态量化总负载
 	unsigned long			load_avg;
 	unsigned long			runnable_avg; ///在SMP负载均衡调度器中用于衡量CPU是否繁忙
 	
+	///用于EAS调度器和CPU调频
 	unsigned long			util_avg;///实际算力
 	struct util_est			util_est;
 } ____cacheline_aligned;
@@ -561,8 +565,10 @@ struct sched_entity {
 	int				depth;
 	struct sched_entity		*parent;
 	/* rq on which this entity is (to be) queued: */
+	///该se挂在到cfs_rq，指向parent->my_rq
 	struct cfs_rq			*cfs_rq;
 	/* rq "owned" by this entity/group: */
+	///本se的cfs_rq,只有group se才有cfs_rq，task_se为NULl
 	struct cfs_rq			*my_q;
 	/* cached value of my_q->h_nr_running */
 	unsigned long			runnable_weight;
@@ -802,6 +808,7 @@ struct task_struct {
 	struct __call_single_node	wake_entry;
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 	/* Current CPU: */
+	///当前进程在哪个CPU运行
 	unsigned int			cpu;
 #endif
 	unsigned int			wakee_flips;
@@ -863,6 +870,7 @@ struct task_struct {
 #endif
 
 #ifdef CONFIG_CGROUP_SCHED
+	///cgroup cpu资源统计对象
 	struct task_group		*sched_task_group;
 #endif
 
@@ -940,7 +948,7 @@ struct task_struct {
 	 * */
 	struct sched_info		sched_info;
 	/*
-	 * 系统中所有进程通过tasks组成一个链表;
+	 * 系统中所有进程通过tasks组成一个链表,双向环形链表;
 	 * 链表头是init_task, 即0号进程
 	 * next_task(): 遍历下一个进程
 	 * next_thread(): 遍历线程组的下一个线程
@@ -1108,7 +1116,8 @@ struct task_struct {
 	struct list_head		ptrace_entry;
 
 	/* PID/PID hash table linkage. */
-	struct pid			*thread_pid;	///进程pid哈希表，可以用来判断线程是否alive,进程退出,这个指针为NULL
+	///进程pid哈希表，可以用来判断线程是否alive,进程退出,这个指针为NULL
+	struct pid			*thread_pid;
 	struct hlist_node		pid_links[PIDTYPE_MAX];
 
 	///线程组中所有线程的链表
@@ -1335,6 +1344,7 @@ struct task_struct {
 
 	struct task_io_accounting	ioac;
 #ifdef CONFIG_PSI
+	///PSI所处状态
 	/* Pressure stall state */
 	unsigned int			psi_flags;
 #endif
@@ -1356,8 +1366,10 @@ struct task_struct {
 #endif
 #ifdef CONFIG_CGROUPS
 	/* Control Group info protected by css_set_lock: */
+	///关联cgroup
 	struct css_set __rcu		*cgroups;
 	/* cg_list protected by css_set_lock and tsk->alloc_lock: */
+	///同一个cgroup/css_set，所有进程链表
 	struct list_head		cg_list;
 #endif
 #ifdef CONFIG_X86_CPU_RESCTRL
@@ -1566,6 +1578,7 @@ struct task_struct {
 	unsigned int			memcg_nr_pages_over_high;
 
 	/* Used by memcontrol for targeted memcg charge: */
+	///内存资源统计对象
 	struct mem_cgroup		*active_memcg;
 #endif
 
@@ -1649,6 +1662,7 @@ struct task_struct {
 	randomized_struct_fields_end
 
 	/* CPU-specific state of this task: */
+	///switch_to时，保存进程的硬件上下文
 	struct thread_struct		thread;
 
 	/*

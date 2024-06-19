@@ -237,11 +237,17 @@ extern void *memmap_alloc(phys_addr_t size, phys_addr_t align,
  * are moved to the end of a zone during a compaction run and the run
  * completes when free_pfn <= migrate_pfn
  */
+ ///内存规整内部使用的控制属性
 struct compact_control {
+	///从zone尾部向头部扫描过程，发现的空闲页，加入freepages链表
 	struct list_head freepages;	/* List of free pages to migrate to */
+	///从zone头部向尾部扫描过程，发现的可迁移页，加入migratepages链表
 	struct list_head migratepages;	/* List of pages being migrated */
+	///已经分离的空闲页数量
 	unsigned int nr_freepages;	/* Number of isolated free pages */
+	///准备迁移的页面数量
 	unsigned int nr_migratepages;	/* Number of pages to migrate */
+	///isolate_freepages扫描的起始页帧号
 	unsigned long free_pfn;		/* isolate_freepages search base */
 	/*
 	 * Acts as an in/out parameter to page isolation for migration.
@@ -249,10 +255,15 @@ struct compact_control {
 	 * isolate_migratepages_block will update the value to the next pfn
 	 * after the last isolated one.
 	 */
+	///isolate_migratepages扫描的起始页帧号,上一次扫描的停止页帧号
 	unsigned long migrate_pfn;
+	///线性扫描的起始页帧号
 	unsigned long fast_start_pfn;	/* a pfn to start linear scan from */
+	///扫描的zone
 	struct zone *zone;
+	///已经扫描的迁移页总数
 	unsigned long total_migrate_scanned;
+	///已经扫描的空闲页总数
 	unsigned long total_free_scanned;
 	unsigned short fast_search_fail;/* failures to use free list searches */
 	short search_order;		/* order to start a fast search at */
@@ -261,6 +272,7 @@ struct compact_control {
 	int migratetype;		/* migratetype of direct compactor */
 	const unsigned int alloc_flags;	/* alloc flags of a direct compactor */
 	const int highest_zoneidx;	/* zone index of a direct compactor */
+	///内存规整模式
 	enum migrate_mode mode;		/* Async or sync migration mode */
 	bool ignore_skip_hint;		/* Scan blocks even if marked skip */
 	bool no_set_skip_hint;		/* Don't mark blocks for skipping */
@@ -583,7 +595,7 @@ extern void set_pageblock_order(void);
 unsigned int reclaim_clean_pages_from_list(struct zone *zone,
 					    struct list_head *page_list);
 /* The ALLOC_WMARK bits are used as an index to zone->watermark */
-#define ALLOC_WMARK_MIN		WMARK_MIN   ///在最小水位sater mark及以上限制页面分配
+#define ALLOC_WMARK_MIN		WMARK_MIN   ///在最小水位watermark及以上限制页面分配
 #define ALLOC_WMARK_LOW		WMARK_LOW   ///仅在低水位及以上限制页面分配
 #define ALLOC_WMARK_HIGH	WMARK_HIGH  ///仅在高水位及以上限制页面分配
 #define ALLOC_NO_WATERMARKS	0x04 /* don't check watermarks at all */

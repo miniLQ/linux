@@ -1193,6 +1193,7 @@ build_sched_groups(struct sched_domain *sd, int cpu)
 {
 	struct sched_group *first = NULL, *last = NULL;
 	struct sd_data *sdd = sd->private;
+	///调度域管辖的CPU位图
 	const struct cpumask *span = sched_domain_span(sd);
 	struct cpumask *covered;
 	int i;
@@ -1212,6 +1213,7 @@ build_sched_groups(struct sched_domain *sd, int cpu)
 
 		cpumask_or(covered, covered, sched_group_span(sg));
 
+///如果该调度域有多个调度组，所有组构成一个链表
 		if (!first)
 			first = sg;
 		if (last)
@@ -1219,6 +1221,7 @@ build_sched_groups(struct sched_domain *sd, int cpu)
 		last = sg;
 	}
 	last->next = first;
+	///groups指针指向所有调度组链表
 	sd->groups = first;
 
 	return 0;
@@ -1438,6 +1441,7 @@ __visit_domain_allocation_hell(struct s_data *d, const struct cpumask *cpu_map)
 {
 	memset(d, 0, sizeof(*d));
 
+///为创建拓扑结构,分配对应结构体
 	if (__sdt_alloc(cpu_map))
 		return sa_sd_storage;
 	d->sd = alloc_percpu(struct sched_domain *);
@@ -1997,12 +2001,15 @@ int sched_numa_find_closest(const struct cpumask *cpus, int cpu)
 }
 
 #endif /* CONFIG_NUMA */
-
+///每个SDTL通过一个sched_domain_topology_level结构描述,内嵌一个sd_data
+///为每个CPU，都分配调度域，调度组，调度组能力,即每个CPU在每个SDTL中都有对应的调度域和调度组
 static int __sdt_alloc(const struct cpumask *cpu_map)
 {
 	struct sched_domain_topology_level *tl;
 	int j;
 
+///遍历默认CPU拓扑关系组default_topology
+///为每个层级调度域，调度组，调度组能力分配per-CPU变量
 	for_each_sd_topology(tl) {
 		struct sd_data *sdd = &tl->data;
 
@@ -2022,6 +2029,7 @@ static int __sdt_alloc(const struct cpumask *cpu_map)
 		if (!sdd->sgc)
 			return -ENOMEM;
 
+		///遍历所有cpu_active_mask的CPU，为每个CPU创建一个sched_domain,sched_group,sched_group_capacity结构，存放在per-CPU变量中
 		for_each_cpu(j, cpu_map) {
 			struct sched_domain *sd;
 			struct sched_domain_shared *sds;
@@ -2122,6 +2130,7 @@ static struct sched_domain *build_sched_domain(struct sched_domain_topology_leve
 					child->name, sd->name);
 #endif
 			/* Fixup, ensure @sd has at least @child CPUs. */
+			///父子层级都调度域管辖CPU范围都记录在父层调度域，sched_domain_span往下包含
 			cpumask_or(sched_domain_span(sd),
 				   sched_domain_span(sd),
 				   sched_domain_span(child));
@@ -2169,6 +2178,7 @@ static bool topology_span_sane(struct sched_domain_topology_level *tl,
 	return true;
 }
 
+///建立调度域拓扑结构
 /*
  * Build sched domains for a given set of CPUs and attach the sched domains
  * to the individual CPUs
@@ -2190,16 +2200,20 @@ build_sched_domains(const struct cpumask *cpu_map, struct sched_domain_attr *att
 	if (alloc_state != sa_rootdomain)
 		goto error;
 
+///为每个CPU创建一整套SDTL对应的调度域和调度组
 	/* Set up domains for CPUs specified by the cpu_map: */
+	///遍历cpu_active_mask的所有CPU
 	for_each_cpu(i, cpu_map) {
 		struct sched_domain_topology_level *tl;
 
 		sd = NULL;
+		///遍历default_topology
 		for_each_sd_topology(tl) {
 
 			if (WARN_ON(!topology_span_sane(tl, cpu_map, i)))
 				goto error;
 
+			///为每个CPU,某个层级tl，创建一套调度域
 			sd = build_sched_domain(tl, cpu_map, attr, sd, i);
 
 			has_asym |= sd->flags & SD_ASYM_CPUCAPACITY;
@@ -2215,8 +2229,10 @@ build_sched_domains(const struct cpumask *cpu_map, struct sched_domain_attr *att
 
 	/* Build the groups for the domains */
 	for_each_cpu(i, cpu_map) {
+		///为每个CPU遍历刚创建的每个调度域
 		for (sd = *per_cpu_ptr(d.sd, i); sd; sd = sd->parent) {
 			sd->span_weight = cpumask_weight(sched_domain_span(sd));
+			///创建一个调度组
 			if (sd->flags & SD_OVERLAP) {
 				if (build_overlap_sched_groups(sd, i))
 					goto error;
@@ -2248,6 +2264,7 @@ build_sched_domains(const struct cpumask *cpu_map, struct sched_domain_attr *att
 		if (rq->cpu_capacity_orig > READ_ONCE(d.rd->max_cpu_capacity))
 			WRITE_ONCE(d.rd->max_cpu_capacity, rq->cpu_capacity_orig);
 
+		///调度域和调度组，添加到就绪队列
 		cpu_attach_domain(sd, d.rd, i);
 	}
 	rcu_read_unlock();
@@ -2322,6 +2339,7 @@ void free_sched_domains(cpumask_var_t doms[], unsigned int ndoms)
  * Set up scheduler domains and groups.  For now this just excludes isolated
  * CPUs, but could be used to exclude other special cases in the future.
  */
+ ///初始化调度域
 int sched_init_domains(const struct cpumask *cpu_map)
 {
 	int err;

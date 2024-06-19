@@ -410,6 +410,7 @@ void arch_pick_mmap_layout(struct mm_struct *mm, struct rlimit *rlim_stack)
 {
 	unsigned long random_factor = 0UL;
 
+	///如果开启随机化，获取一个随机值
 	if (current->flags & PF_RANDOMIZE)
 		random_factor = arch_mmap_rnd();
 

@@ -534,15 +534,24 @@ struct kmem_cache_node {
 	spinlock_t list_lock;
 
 #ifdef CONFIG_SLAB
+///所有slab中有部分obj是空闲的
 	struct list_head slabs_partial;	/* partial list first, better asm code */
+///slab中没有空闲obj
 	struct list_head slabs_full;
+///slab中全部是空闲obj
 	struct list_head slabs_free;
+	///本节点slab总数
 	unsigned long total_slabs;	/* length of all slab lists */
+	///本节点空闲slab个数
 	unsigned long free_slabs;	/* length of free slab list only */
-	unsigned long free_objects;  ///三个链表中空闲对象总和
-	unsigned int free_limit;     ///所有slab分配器上容许空闲对象最大数目
+	///三个链表中空闲对象总和
+	unsigned long free_objects;  
+    ///所有slab分配器上容许空闲对象最大数目
+	unsigned int free_limit;     
 	unsigned int colour_next;	/* Per-node cache coloring */
+	///本节点所有CPU共享的本地高速缓存
 	struct array_cache *shared;	/* shared per node */
+	///其他节点所有CPU共享的本地高速缓存
 	struct alien_cache **alien;	/* on other nodes */
 	unsigned long next_reap;	/* updated without locking */
 	int free_touched;		/* updated without locking */

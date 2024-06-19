@@ -269,6 +269,7 @@ const struct sched_class fair_sched_class;
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 
+///依次往上遍历所有父se
 /* Walk up scheduling entities hierarchy */
 #define for_each_sched_entity(se) \
 		for (; se; se = se->parent)
@@ -659,6 +660,8 @@ static inline u64 calc_delta_fair(u64 delta, struct sched_entity *se)
  *
  * p = (nr <= nl) ? l : l*nr/nl
  */
+ ///cfs就绪队列中，当前可运行进程个数大于8时，为进程个数乘以最小延迟*0.75ms
+ ///否则默认延迟6ms
 static u64 __sched_period(unsigned long nr_running)
 {
 	if (unlikely(nr_running > sched_nr_latency))
@@ -690,7 +693,7 @@ static u64 sched_slice(struct cfs_rq *cfs_rq, struct sched_entity *se)
 		cfs_rq = cfs_rq_of(se);
 		load = &cfs_rq->load;
 
-		///如果没有加入就绪队列，更新cfs_rq->load
+		///如果没有加入就绪队列，更新cfs_rq->load,即cfs_rq总权重
 		if (unlikely(!se->on_rq)) {
 			lw = cfs_rq->load;
 
@@ -3945,6 +3948,7 @@ static void remove_entity_load_avg(struct sched_entity *se)
 	raw_spin_unlock_irqrestore(&cfs_rq->removed.lock, flags);
 }
 
+///获取CFS就绪队列平均负载，用于SMP负载均衡
 static inline unsigned long cfs_rq_runnable_avg(struct cfs_rq *cfs_rq)
 {
 	return cfs_rq->avg.runnable_avg;
@@ -3957,6 +3961,7 @@ static inline unsigned long cfs_rq_load_avg(struct cfs_rq *cfs_rq)
 
 static int newidle_balance(struct rq *this_rq, struct rq_flags *rf);
 
+///获取当前进程量化计算能力,用于EAS调度器和CPU调频
 static inline unsigned long task_util(struct task_struct *p)
 {
 	return READ_ONCE(p->se.avg.util_avg);
@@ -4202,7 +4207,7 @@ static void check_spread(struct cfs_rq *cfs_rq, struct sched_entity *se)
 #endif
 }
 
-///对虚拟时间进行惩罚
+///对虚拟时间进行惩罚/补偿
 static void
 place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
 {
@@ -4465,12 +4470,15 @@ check_preempt_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 	struct sched_entity *se;
 	s64 delta;
 
-	ideal_runtime = sched_slice(cfs_rq, curr);///理论运行时间
-	delta_exec = curr->sum_exec_runtime - curr->prev_sum_exec_runtime; ///实际运行时间
+	///理论运行时间
+	ideal_runtime = sched_slice(cfs_rq, curr);
+	///实际运行时间
+	delta_exec = curr->sum_exec_runtime - curr->prev_sum_exec_runtime;
 
 	///实际运行时间>理论运行时间，时间片用完，需要调度
 	if (delta_exec > ideal_runtime) {
-		resched_curr(rq_of(cfs_rq)); ///设置调度标记TIF_NEED_RESCHED
+		///设置调度标记TIF_NEED_RESCHED
+		resched_curr(rq_of(cfs_rq)); 
 		/*
 		 * The current task ran long enough, ensure it doesn't get
 		 * re-elected due to buddy favours.
@@ -4489,7 +4497,7 @@ check_preempt_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 		return;
 
 	se = __pick_first_entity(cfs_rq);
-	///虚拟时间和红黑树最左树时间比较
+	///虚拟时间和红黑树最左树时间比较,仍然最小，不调度
 	delta = curr->vruntime - se->vruntime;
 
 	if (delta < 0)
@@ -4625,6 +4633,7 @@ entity_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr, int queued)
 	/*
 	 * Update run-time statistics of the 'current'.
 	 */
+	 ///更新当前进程vruntime和就绪队列的min_vruntime
 	update_curr(cfs_rq);
 
 	/*
@@ -4633,6 +4642,7 @@ entity_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr, int queued)
 
 	///更新当前进程实体和就绪队列rq的负载
 	update_load_avg(cfs_rq, curr, UPDATE_TG);
+	///更新group负载
 	update_cfs_group(curr);
 
 #ifdef CONFIG_SCHED_HRTICK
@@ -4653,7 +4663,8 @@ entity_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr, int queued)
 #endif
 
 	if (cfs_rq->nr_running > 1)
-		check_preempt_tick(cfs_rq, curr); ///检查当前是否需要调度
+		///检查当前是否需要调度
+		check_preempt_tick(cfs_rq, curr); 
 }
 
 
@@ -5643,6 +5654,7 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		if (se->on_rq)
 			break;
 		cfs_rq = cfs_rq_of(se);
+		///se加入cfs_rq
 		enqueue_entity(cfs_rq, se, flags);
 
 		cfs_rq->h_nr_running++;
@@ -6100,6 +6112,7 @@ static inline int find_idlest_cpu(struct sched_domain *sd, struct task_struct *p
 {
 	int new_cpu = cpu;
 
+///若调度域CPU都不在允许CPU位图，世界返回上一次CPU
 	if (!cpumask_intersects(sched_domain_span(sd), p->cpus_ptr))
 		return prev_cpu;
 
@@ -6107,9 +6120,11 @@ static inline int find_idlest_cpu(struct sched_domain *sd, struct task_struct *p
 	 * We need task's util for cpu_util_without, sync it up to
 	 * prev_cpu's last_update_time.
 	 */
+	 ///不是fork调用到本函数的，更新负载信息
 	if (!(sd_flag & SD_BALANCE_FORK))
 		sync_entity_load_avg(&p->se);
 
+///自上而下遍历调度域
 	while (sd) {
 		struct sched_group *group;
 		struct sched_domain *tmp;
@@ -6120,12 +6135,14 @@ static inline int find_idlest_cpu(struct sched_domain *sd, struct task_struct *p
 			continue;
 		}
 
+		///查找最空闲调度组
 		group = find_idlest_group(sd, p, cpu);
 		if (!group) {
 			sd = sd->child;
 			continue;
 		}
 
+		///查找负载最小CPU
 		new_cpu = find_idlest_group_cpu(group, p, cpu);
 		if (new_cpu == cpu) {
 			/* Now try balancing at a lower domain level of 'cpu': */
@@ -6434,6 +6451,7 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 	 */
 	lockdep_assert_irqs_disabled();
 
+//是否空闲CPU
 	if ((available_idle_cpu(target) || sched_idle_cpu(target)) &&
 	    asym_fits_capacity(task_util, target))
 		return target;
@@ -6441,6 +6459,7 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 	/*
 	 * If the previous CPU is cache affine and idle, don't be stupid:
 	 */
+///两个CPU是否有高速缓存亲和性, 且prev空闲, 优先prev
 	if (prev != target && cpus_share_cache(prev, target) &&
 	    (available_idle_cpu(prev) || sched_idle_cpu(prev)) &&
 	    asym_fits_capacity(task_util, prev))
@@ -6463,6 +6482,7 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 	/* Check a recently used CPU as a potential idle candidate: */
 	recent_used_cpu = p->recent_used_cpu;
 	p->recent_used_cpu = prev;
+///最近使用与prev,target都不同,且最近使用空闲,且符合CPU位图,优先最近使用
 	if (recent_used_cpu != prev &&
 	    recent_used_cpu != target &&
 	    cpus_share_cache(recent_used_cpu, target) &&
@@ -6476,7 +6496,7 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 		p->recent_used_cpu = prev;
 		return recent_used_cpu;
 	}
-
+///若依然找不到，区调度域找
 	/*
 	 * For asymmetric CPU capacity systems, our domain of interest is
 	 * sd_asym_cpucapacity rather than sd_llc.
@@ -6556,6 +6576,8 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
  *
  * Return: the (estimated) utilization for the specified CPU
  */
+
+///获取CPU当前量化计算能力,用于EAS调度器和CPU调频
 static inline unsigned long cpu_util(int cpu)
 {
 	struct cfs_rq *cfs_rq;
@@ -6809,6 +6831,7 @@ compute_energy(struct task_struct *p, int dst_cpu, struct perf_domain *pd)
  * other use-cases too. So, until someone finds a better way to solve this,
  * let's keep things simple by re-using the existing slow path.
  */
+ ///EAS选核
 static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu)
 {
 	unsigned long prev_delta = ULONG_MAX, best_delta = ULONG_MAX;
@@ -6827,6 +6850,7 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu)
 	 * Energy-aware wake-up happens on the lowest sched_domain starting
 	 * from sd_asym_cpucapacity spanning over this_cpu and prev_cpu.
 	 */
+	 ///获取调度域，共享L2高速缓存
 	sd = rcu_dereference(*this_cpu_ptr(&sd_asym_cpucapacity));
 	while (sd && !cpumask_test_cpu(prev_cpu, sched_domain_span(sd)))
 		sd = sd->parent;
@@ -6835,20 +6859,24 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu)
 
 	target = prev_cpu;
 
+	///更新进程block负载
 	sync_entity_load_avg(&p->se);
-	if (!task_util_est(p))
+	if (!task_util_est(p)) ///获取进程实际算力，util_avg
 		goto unlock;
 
+///遍历性能域
 	for (; pd; pd = pd->next) {
 		unsigned long cur_delta, spare_cap, max_spare_cap = 0;
 		bool compute_prev_delta = false;
 		unsigned long base_energy_pd;
 		int max_spare_cap_cpu = -1;
 
+		///遍历性能域的每个CPU
 		for_each_cpu_and(cpu, perf_domain_span(pd), sched_domain_span(sd)) {
 			if (!cpumask_test_cpu(cpu, p->cpus_ptr))
 				continue;
 
+			///预算迁移到该CPU后，实际负载
 			util = cpu_util_next(cpu, p, cpu);
 			cpu_cap = capacity_of(cpu);
 			spare_cap = cpu_cap;
@@ -6862,6 +6890,7 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu)
 			 * aligned with sched_cpu_util().
 			 */
 			util = uclamp_rq_util_with(cpu_rq(cpu), util, p);
+			///CPU负载达到最大80%，就不选
 			if (!fits_capacity(util, cpu_cap))
 				continue;
 
@@ -6882,7 +6911,7 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu)
 			continue;
 
 		/* Compute the 'base' energy of the pd, without @p */
-		base_energy_pd = compute_energy(p, -1, pd);
+		base_energy_pd = compute_energy(p, -1, pd);  ///预算功耗
 		base_energy += base_energy_pd;
 
 		/* Evaluate the energy impact of using prev_cpu. */
@@ -6891,7 +6920,7 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu)
 			if (prev_delta < base_energy_pd)
 				goto unlock;
 			prev_delta -= base_energy_pd;
-			best_delta = min(best_delta, prev_delta);
+			best_delta = min(best_delta, prev_delta);  ///选择功耗最小的
 		}
 
 		/* Evaluate the energy impact of using max_spare_cap_cpu. */
@@ -6942,7 +6971,14 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int wake_flags)
 	int cpu = smp_processor_id();
 	int new_cpu = prev_cpu;
 	int want_affine = 0;
+
 	/* SD_flags and WF_flags share the first nibble */
+/*
+三种情况
+  #define WF_EXEC     0x02 / Wakeup after exec; maps to SD_BALANCE_EXEC /
+  #define WF_FORK     0x04 / Wakeup after fork; maps to SD_BALANCE_FORK /
+  #define WF_TTWU     0x08 / Wakeup;            maps to SD_BALANCE_WAKE /
+*/
 	int sd_flag = wake_flags & 0xF;
 
 	/*
@@ -6953,6 +6989,7 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int wake_flags)
 		record_wakee(p);
 
 		if (sched_energy_enabled()) {
+			///eas选核
 			new_cpu = find_energy_efficient_cpu(p, prev_cpu);
 			if (new_cpu >= 0)
 				return new_cpu;
@@ -6963,6 +7000,7 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int wake_flags)
 	}
 
 	rcu_read_lock();
+	///遍历调度域
 	for_each_domain(cpu, tmp) {
 		/*
 		 * If both 'cpu' and 'prev_cpu' are part of this domain,
@@ -6971,6 +7009,7 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int wake_flags)
 		if (want_affine && (tmp->flags & SD_WAKE_AFFINE) &&
 		    cpumask_test_cpu(prev_cpu, sched_domain_span(tmp))) {
 			if (cpu != prev_cpu)
+				///如果wakeup_cpu负载+唤醒进程负载 < prev_cpu负载，那就用wakeup_cpu唤醒
 				new_cpu = wake_affine(tmp, p, cpu, prev_cpu, sync);
 
 			sd = NULL; /* Prefer wake_affine over balance flags */
@@ -6985,9 +7024,11 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int wake_flags)
 
 	if (unlikely(sd)) {
 		/* Slow path */
+		///没有找到合适调度域，进入慢速路径，找最闲CPU
 		new_cpu = find_idlest_cpu(sd, p, cpu, prev_cpu, sd_flag);
 	} else if (wake_flags & WF_TTWU) { /* XXX always ? */
 		/* Fast path */
+		///优先选上一次运行的CPU
 		new_cpu = select_idle_sibling(p, prev_cpu, new_cpu);
 	}
 	rcu_read_unlock();
@@ -7288,6 +7329,7 @@ again:
 struct task_struct *
 pick_next_task_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 {
+	///根cfs就绪队列
 	struct cfs_rq *cfs_rq = &rq->cfs;
 	struct sched_entity *se;
 	struct task_struct *p;
@@ -7297,6 +7339,7 @@ again:
 	if (!sched_fair_runnable(rq))
 		goto idle;
 
+///组调度
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	if (!prev || prev->sched_class != &fair_sched_class)
 		goto simple;
@@ -7340,7 +7383,12 @@ again:
 			}
 		}
 
+		///从就绪队列选择最优先se
 		se = pick_next_entity(cfs_rq, curr);
+
+		///如果时task se，那么cfs_rq=NULL
+		///如果是group se，cfs_rq=组se对应的cfs_rq
+		///如果是group se，继续从group的cfs_rq中选择下一个最优先的se，循环执行，直到找到最底层task se
 		cfs_rq = group_cfs_rq(se);
 	} while (cfs_rq);
 
@@ -7806,6 +7854,14 @@ static inline int migrate_degrades_locality(struct task_struct *p,
 }
 #endif
 
+/* 
+ * 可能不适合迁移情形
+ * 1.CPU位图限制;
+ * 2.进程正在运行；
+ * 3.热高度缓存cache-hot；
+ * 4.进程负载的一半，大于要迁移负载总量
+ */
+
 /*
  * can_migrate_task - may task p from runqueue rq be migrated to this_cpu?
  */
@@ -7969,6 +8025,7 @@ static int detach_tasks(struct lb_env *env)
 	if (env->imbalance <= 0)
 		return 0;
 
+///遍历最繁忙就绪队列所有进程
 	while (!list_empty(tasks)) {
 		/*
 		 * We don't want to steal all, otherwise we may be treated likewise,
@@ -7991,6 +8048,7 @@ static int detach_tasks(struct lb_env *env)
 			break;
 		}
 
+///判断是否是否迁移
 		if (!can_migrate_task(p, env))
 			goto next;
 
@@ -8043,7 +8101,9 @@ static int detach_tasks(struct lb_env *env)
 			break;
 		}
 
+///退出就绪队列
 		detach_task(p, env);
+///加入待迁移链表
 		list_add(&p->se.group_node, &env->tasks);
 
 		detached++;
@@ -8119,6 +8179,7 @@ static void attach_tasks(struct lb_env *env)
 	rq_lock(env->dst_rq, &rf);
 	update_rq_clock(env->dst_rq);
 
+///遍历迁移链表，加入目标CPU继续队列
 	while (!list_empty(tasks)) {
 		p = list_first_entry(tasks, struct task_struct, se.group_node);
 		list_del_init(&p->se.group_node);
@@ -8646,15 +8707,16 @@ static inline void update_sg_lb_stats(struct lb_env *env,
 
 	local_group = cpumask_test_cpu(env->dst_cpu, sched_group_span(group));
 
+///遍历阻力所有CPU
 	for_each_cpu_and(i, sched_group_span(group), env->cpus) {
 		struct rq *rq = cpu_rq(i);
 
-		sgs->group_load += cpu_load(rq);
-		sgs->group_util += cpu_util(i);
-		sgs->group_runnable += cpu_runnable(rq);
-		sgs->sum_h_nr_running += rq->cfs.h_nr_running;
+		sgs->group_load += cpu_load(rq);                   ///统计调度组总量化负载
+		sgs->group_util += cpu_util(i);					   ///调度组总的实际算力
+		sgs->group_runnable += cpu_runnable(rq);		   ///可运行进程数量
+		sgs->sum_h_nr_running += rq->cfs.h_nr_running;	   
 
-		nr_running = rq->nr_running;
+		nr_running = rq->nr_running;					   ///正在运行进程数量
 		sgs->sum_nr_running += nr_running;
 
 		if (nr_running > 1)
@@ -8699,10 +8761,12 @@ static inline void update_sg_lb_stats(struct lb_env *env,
 
 	sgs->group_weight = group->group_weight;
 
+///调度组状态
 	sgs->group_type = group_classify(env->sd->imbalance_pct, group, sgs);
 
 	/* Computing avg_load makes sense only when group is overloaded */
 	if (sgs->group_type == group_overloaded)
+		///该调度组每个CPU平均量化负载
 		sgs->avg_load = (sgs->group_load * SCHED_CAPACITY_SCALE) /
 				sgs->group_capacity;
 }
@@ -9193,10 +9257,12 @@ static inline void update_sd_lb_stats(struct lb_env *env, struct sd_lb_stats *sd
 	struct sg_lb_stats tmp_sgs;
 	int sg_status = 0;
 
+///遍历所有调度组
 	do {
 		struct sg_lb_stats *sgs = &tmp_sgs;
 		int local_group;
 
+///是否为本地调度组
 		local_group = cpumask_test_cpu(env->dst_cpu, sched_group_span(sg));
 		if (local_group) {
 			sds->local = sg;
@@ -9207,12 +9273,14 @@ static inline void update_sd_lb_stats(struct lb_env *env, struct sd_lb_stats *sd
 				update_group_capacity(env->sd, env->dst_cpu);
 		}
 
+///更新调度组负载信息
 		update_sg_lb_stats(env, sg, sgs, &sg_status);
 
 		if (local_group)
 			goto next_group;
 
 
+///更新最忙调度组
 		if (update_sd_pick_busiest(env, sds, sg, sgs)) {
 			sds->busiest = sg;
 			sds->busiest_stat = *sgs;
@@ -9268,6 +9336,8 @@ static inline long adjust_numa_imbalance(int imbalance,
 	return imbalance;
 }
 
+///本地调度组平均负载，大于最繁忙调度组，则不做均衡负载
+///根据最繁忙调度组的平均量化负载，调度域平均量化负载，和本地调度组平均量化负载，计算需要迁移的负载不均衡值
 /**
  * calculate_imbalance - Calculate the amount of imbalance present within the
  *			 groups of a given sched_domain during load balance.
@@ -9451,12 +9521,14 @@ static struct sched_group *find_busiest_group(struct lb_env *env)
 	struct sg_lb_stats *local, *busiest;
 	struct sd_lb_stats sds;
 
+///初始化sd_lb_stats结构体
 	init_sd_lb_stats(&sds);
 
 	/*
 	 * Compute the various statistics relevant for load balancing at
 	 * this level.
 	 */
+///更新本调度域负载相关信息,会确认最繁忙调度组
 	update_sd_lb_stats(env, &sds);
 
 	if (sched_energy_enabled()) {
@@ -9469,6 +9541,7 @@ static struct sched_group *find_busiest_group(struct lb_env *env)
 	local = &sds.local_stat;
 	busiest = &sds.busiest_stat;
 
+///没有繁忙调度组，跳过本调度域
 	/* There is no busy sibling group to pull tasks from */
 	if (!sds.busiest)
 		goto out_balanced;
@@ -9505,9 +9578,11 @@ static struct sched_group *find_busiest_group(struct lb_env *env)
 		 * If the local group is more loaded than the selected
 		 * busiest group don't try to pull any tasks.
 		 */
+///如果本地调度组负载超过繁忙调度组，跳过
 		if (local->avg_load >= busiest->avg_load)
 			goto out_balanced;
 
+///计算该调度域平均负载
 		/* XXX broken for overlapping NUMA groups */
 		sds.avg_load = (sds.total_load * SCHED_CAPACITY_SCALE) /
 				sds.total_capacity;
@@ -9516,6 +9591,7 @@ static struct sched_group *find_busiest_group(struct lb_env *env)
 		 * Don't pull any tasks if this group is already above the
 		 * domain average load.
 		 */
+///如果本地调度组负载超过整个调度域，跳过
 		if (local->avg_load >= sds.avg_load)
 			goto out_balanced;
 
@@ -9563,6 +9639,7 @@ static struct sched_group *find_busiest_group(struct lb_env *env)
 	}
 
 force_balance:
+///计算需要迁移多少个进程
 	/* Looks like there is an imbalance. Compute it */
 	calculate_imbalance(env, &sds);
 	return env->imbalance ? sds.busiest : NULL;
@@ -9617,6 +9694,7 @@ static struct rq *find_busiest_queue(struct lb_env *env,
 		if (!nr_running)
 			continue;
 
+///获取CPU额定算力
 		capacity = capacity_of(i);
 
 		/*
@@ -9632,6 +9710,8 @@ static struct rq *find_busiest_queue(struct lb_env *env,
 
 		switch (env->migration_type) {
 		case migrate_load:
+		///根据load*capacity_of()乘积选择最繁忙运行队列
+		///load = cfs_rq->avg.load_avg;
 			/*
 			 * When comparing with load imbalance, use cpu_load()
 			 * which is not scaled with the CPU capacity.
@@ -9772,6 +9852,7 @@ static int active_load_balance_cpu_stop(void *data);
 
 static int should_we_balance(struct lb_env *env)
 {
+	///获取当前调度域的第一个调度组
 	struct sched_group *sg = env->sd->groups;
 	int cpu;
 
@@ -9789,6 +9870,8 @@ static int should_we_balance(struct lb_env *env)
 	if (env->idle == CPU_NEWLY_IDLE)
 		return 1;
 
+///查找是否有空闲CPU
+///释放做负载均衡的CPU是否为当前CPU，若是，则返回true
 	/* Try to find first idle CPU */
 	for_each_cpu_and(cpu, group_balance_mask(sg), env->cpus) {
 		if (!idle_cpu(cpu))
@@ -9818,33 +9901,37 @@ static int load_balance(int this_cpu, struct rq *this_rq,
 	struct cpumask *cpus = this_cpu_cpumask_var_ptr(load_balance_mask);
 
 	struct lb_env env = {
-		.sd		= sd,
-		.dst_cpu	= this_cpu,
-		.dst_rq		= this_rq,
-		.dst_grpmask    = sched_group_span(sd->groups),
+		.sd		= sd,					                   ///当前调度域
+		.dst_cpu	= this_cpu,						       ///当前CPU
+		.dst_rq		= this_rq,					           ///当前CPU就绪队列
+		.dst_grpmask    = sched_group_span(sd->groups),    ///当前调度域第一个调度组的CPU位图
 		.idle		= idle,
-		.loop_break	= sched_nr_migrate_break,
-		.cpus		= cpus,
+		.loop_break	= sched_nr_migrate_break,   		   ///最多迁移32个进村
+		.cpus		= cpus,								   ///load_balance_mask位图
 		.fbq_type	= all,
 		.tasks		= LIST_HEAD_INIT(env.tasks),
 	};
 
+	///sd调度域管辖的CPU位图，复制给load_balance_mask
 	cpumask_and(cpus, sched_domain_span(sd), cpu_active_mask);
 
 	schedstat_inc(sd->lb_count[idle]);
 
 redo:
+///判断当前CPU是否需要做负载均衡
 	if (!should_we_balance(&env)) {
 		*continue_balancing = 0;
 		goto out_balanced;
 	}
 
+///查找该调度域中最繁忙的调度组
 	group = find_busiest_group(&env);
 	if (!group) {
 		schedstat_inc(sd->lb_nobusyg[idle]);
 		goto out_balanced;
 	}
 
+///查找最繁忙调度组里，最繁忙的就绪队列
 	busiest = find_busiest_queue(&env, group);
 	if (!busiest) {
 		schedstat_inc(sd->lb_nobusyq[idle]);
@@ -9855,8 +9942,8 @@ redo:
 
 	schedstat_add(sd->lb_imbalance[idle], env.imbalance);
 
-	env.src_cpu = busiest->cpu;
-	env.src_rq = busiest;
+	env.src_cpu = busiest->cpu;  ///最繁忙调度组里，最繁忙就绪队列的CPU
+	env.src_rq = busiest;        ///最繁忙调度组里的，最繁忙就绪队列
 
 	ld_moved = 0;
 	/* Clear this flag as soon as we find a pullable task */
@@ -9878,6 +9965,8 @@ more_balance:
 		 * cur_ld_moved - load moved in current iteration
 		 * ld_moved     - cumulative load moved across iterations
 		 */
+		 ///遍历最繁忙就绪队列，找出合适被迁移的进程，并退出就绪队列
+		 ///cur_ld_moved,表示已迁出就绪队列进程个数
 		cur_ld_moved = detach_tasks(&env);
 
 		/*
@@ -9891,6 +9980,7 @@ more_balance:
 		rq_unlock(busiest, &rf);
 
 		if (cur_ld_moved) {
+			///迁移出的进程，加入当前CPU的就绪队列
 			attach_tasks(&env);
 			ld_moved += cur_ld_moved;
 		}
@@ -9921,6 +10011,7 @@ more_balance:
 		 * moreover subsequent load balance cycles should correct the
 		 * excess load moved.
 		 */
+		 ///处理由于CPU亲和性不能迁移的进程, 迁移到新的和时cpu
 		if ((env.flags & LBF_DST_PINNED) && env.imbalance > 0) {
 
 			/* Prevent to re-select dst_cpu via env's CPUs */
@@ -11093,11 +11184,15 @@ static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &curr->se;
 
-	///遍历当前进程调度实体
-	///如果开启组机制，还需要调度上一级调度实体；
+	/* 如果开启组机制，还需要遍历上一级调度实体；依次往上遍历所有父se
+	 * 只要有一个se超过分配限额时间，就需要重新调度
+     *	
+	 * 否则就处理本se
+	 */
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
-		entity_tick(cfs_rq, se, queued);  ///检查是否需要调度
+        ///检查是否需要调度
+		entity_tick(cfs_rq, se, queued);
 	}
 
 	if (static_branch_unlikely(&sched_numa_balancing))
@@ -11145,6 +11240,7 @@ static void task_fork_fair(struct task_struct *p)
 		resched_curr(rq);
 	}
 
+	///加入就绪队列时，会重新计算vruntime
 	se->vruntime -= cfs_rq->min_vruntime;
 	rq_unlock(rq, &rf);
 }
@@ -11410,10 +11506,12 @@ int alloc_fair_sched_group(struct task_group *tg, struct task_group *parent)
 	struct cfs_rq *cfs_rq;
 	int i;
 
-	///cfs_rq是指针数组，分配nr_cpu_ids个cfs_rq
+	///cfs_rq是指针数组
 	tg->cfs_rq = kcalloc(nr_cpu_ids, sizeof(cfs_rq), GFP_KERNEL);
 	if (!tg->cfs_rq)
 		goto err;
+
+	///se是指针数组
 	tg->se = kcalloc(nr_cpu_ids, sizeof(se), GFP_KERNEL);
 	if (!tg->se)
 		goto err;
@@ -11436,6 +11534,7 @@ int alloc_fair_sched_group(struct task_group *tg, struct task_group *parent)
 			goto err_free_rq;
 
 		init_cfs_rq(cfs_rq);
+		///初始化组调度参数
 		init_tg_cfs_entry(tg, cfs_rq, se, i, parent->se[i]);
 		init_entity_runnable_average(se);
 	}
@@ -11508,6 +11607,7 @@ void init_tg_cfs_entry(struct task_group *tg, struct cfs_rq *cfs_rq,
 	if (!se)
 		return;
 
+///cfs_rq指向系统CPU的cfs_rq
 	if (!parent) {
 		se->cfs_rq = &rq->cfs;
 		se->depth = 0;
@@ -11516,6 +11616,7 @@ void init_tg_cfs_entry(struct task_group *tg, struct cfs_rq *cfs_rq,
 		se->depth = parent->depth + 1;
 	}
 
+	///my_q指向本组的cfs_rq
 	se->my_q = cfs_rq;
 	/* guarantee group entities always have weight */
 	update_load_set(&se->load, NICE_0_LOAD);

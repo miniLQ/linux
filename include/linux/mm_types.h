@@ -95,6 +95,15 @@ struct page {
 			 * Used for swp_entry_t if PageSwapCache.
 			 * Indicates order in the buddy system if PageBuddy.
 			 */
+/* swap缺页异常时，保存换出页标识符
+ * 页标识符定义
+ * arch/arm64/include/asm/pgtable.h
+ * Encode and decode a swap entry:
+ *  bits 0-1:   present (must be zero)
+ *  bits 2-7:   swap type
+ *  bits 8-57:  swap offset
+ *  bit  58:    PTE_PROT_NONE (must be zero)
+ */
 			unsigned long private;
 		};
 		struct {	/* page_pool used by netstack */
@@ -119,7 +128,8 @@ struct page {
 				atomic_long_t pp_frag_count;
 			};
 		};
-		struct {	/* slab, slob and slub */ ///管理slab
+		 ///管理slab,当flag设置PG-SLAB后，slab成员生效
+		struct {	/* slab, slob and slub */
 			union {
 				struct list_head slab_list;
 				struct {	/* Partial pages */
@@ -133,10 +143,15 @@ struct page {
 #endif
 				};
 			};
+			///指向slab的slab cache描述符
 			struct kmem_cache *slab_cache; /* not slob */
+
 			/* Double-word boundary */
+			///指向slab空闲obj的索引数组,与slab描述符的active成员搭配使用
+			///实际上存放slab中未使用的obj索引值
 			void *freelist;		/* first free object */
 			union {
+				///slab区域的第一个obj
 				void *s_mem;	/* slab: first object */
 				unsigned long counters;		/* SLUB */
 				struct {			/* SLUB */
@@ -210,6 +225,7 @@ struct page {
 		 */
 		unsigned int page_type;
 
+		///slab已经使用的obj数量
 		unsigned int active;		/* SLAB */
 		int units;			/* SLOB */
 	};
@@ -321,17 +337,17 @@ struct vm_userfaultfd_ctx {};
 struct vm_area_struct {
 	/* The first cache line has the info for VMA tree walking. */
 
-	///VMA在进程地址空间内的起始地址，结束地址
+	///VMA在进程地址空间内的起始地址，结束地址 ,[start,end)
 	unsigned long vm_start;		/* Our start address within vm_mm. */  
 	unsigned long vm_end;		/* The first byte after our end address
 					   within vm_mm. */
 
 	/* linked list of VM areas per task, sorted by address */
-	///进程的所有vma连接成一个链表
+	///进程的所有vma连接成一个链表,链表头mmap
 	struct vm_area_struct *vm_next, *vm_prev;   
 
 	///每个进程的mm_struct都有一个红黑树，VMA作为一个节点，加入该红黑树
-	struct rb_node vm_rb; /// 
+	struct rb_node vm_rb; 
 
 	/*
 	 * Largest free memory gap in bytes to the left of this VMA.
@@ -339,6 +355,7 @@ struct vm_area_struct {
 	 * VMAs below us in the VMA rbtree and its ->vm_prev. This helps
 	 * get_unmapped_area find a free area of the right size.
 	 */
+	 ///以当前vma节点为根，左子树中最大可用虚拟内存区域的大小
 	unsigned long rb_subtree_gap;
 
 	/* Second cache line starts here. */
@@ -350,10 +367,10 @@ struct vm_area_struct {
 	 * Access permissions of this VMA.
 	 * See vmf_insert_mixed_prot() for discussion.
 	 */
-	 ///vma的访问权限
+	 ///当前vma的访问权限
 	pgprot_t vm_page_prot;  
 	
-	///描述该vma的一组标志位
+	///描述该vma的属性
 	unsigned long vm_flags;		/* Flags, see mm.h. */  
 
 	/*
@@ -386,7 +403,7 @@ struct vm_area_struct {
 	///指定文件映射的偏移量，单位页
 	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE  
 					   units */
-	 ///指向映射的文件
+	 ///指向映射的文件,匿名页为NULL
 	struct file * vm_file;		/* File we map to (can be NULL). */ 
 	void * vm_private_data;		/* was vm_pte (shared mem) */
 
@@ -419,7 +436,7 @@ struct mm_struct {
 		///进程里所有vma形成的一个单链表，mmap是表头
 		struct vm_area_struct *mmap;		/* list of VMAs */ 
 		
-		///vma红黑树的根节点
+		///vma红黑树的根节点,根据地址大小组成树，方便快速查找
 		struct rb_root mm_rb;                                  
 		u64 vmacache_seqnum;                   /* per-thread vmacache */
 #ifdef CONFIG_MMU
@@ -428,17 +445,21 @@ struct mm_struct {
 				unsigned long addr, unsigned long len,
 				unsigned long pgoff, unsigned long flags);  
 #endif
-		///mmap空间起始地址
+		///mmap内存开始映射的起始地址
 		unsigned long mmap_base;	/* base of mmap area */  
+		///按照bottom-up方向分配内存的起始地址
 		unsigned long mmap_legacy_base;	/* base of mmap area in bottom-up allocations */
 #ifdef CONFIG_HAVE_ARCH_COMPAT_MMAP_BASES
 		/* Base addresses for compatible mmap() */
 		unsigned long mmap_compat_base;
 		unsigned long mmap_compat_legacy_base;
 #endif
+		///task的虚拟地址可见大小
 		unsigned long task_size;	/* size of task vm space */
+		///最后一个vma的结束地址
 		unsigned long highest_vm_end;	/* highest vma end address */
-		pgd_t * pgd;  ///指向进程一级页表
+		///指向进程一级页表,页全局目录地址
+		pgd_t * pgd;
 
 #ifdef CONFIG_MEMBARRIER
 		/**
@@ -459,7 +480,8 @@ struct mm_struct {
 		 * @mm_count (which may then free the &struct mm_struct if
 		 * @mm_count also drops to 0).
 		 */
-		atomic_t mm_users;  ///正在使用该进程空间的线程数目
+		 ///正在使用该进程空间的线程数目
+		atomic_t mm_users;  
 
 		/**
 		 * @mm_count: The number of references to &struct mm_struct
@@ -468,11 +490,13 @@ struct mm_struct {
 		 * Use mmgrab()/mmdrop() to modify. When this drops to 0, the
 		 * &struct mm_struct is freed.
 		 */
-		atomic_t mm_count; ///mm_struct结构体的主引用计数
+		 ///mm_struct结构体的主引用计数
+		atomic_t mm_count; 
 
 #ifdef CONFIG_MMU
 		atomic_long_t pgtables_bytes;	/* PTE page table pages */
 #endif
+		///mm中vma个数
 		int map_count;			/* number of VMAs */
 
 		spinlock_t page_table_lock; /* Protects page tables and some
@@ -490,7 +514,8 @@ struct mm_struct {
 		 * mmap_lock, which can easily push the 2 fields into one
 		 * cacheline.
 		 */
-		struct rw_semaphore mmap_lock;  ///保护vma的读写信号量
+///保护vma的读写信号量,读操作场景比写操作多，所有用读写信号量
+		struct rw_semaphore mmap_lock;  
 
 ///所有的mm_struct结构都连接到一个双向链表中，链表头是init_mm内存描述符
 		struct list_head mmlist; /* List of maybe swapped mm's.	These
@@ -503,7 +528,8 @@ struct mm_struct {
 		unsigned long hiwater_rss; /* High-watermark of RSS usage */
 		unsigned long hiwater_vm;  /* High-water virtual memory usage */
 
-		unsigned long total_vm;	   /* Total pages mapped */    ///已经使用的进程地址空间总和
+		///已经使用的进程地址空间总和
+		unsigned long total_vm;	   /* Total pages mapped */    
 		unsigned long locked_vm;   /* Pages that have PG_mlocked set */
 		atomic64_t    pinned_vm;   /* Refcount permanently increased */
 		unsigned long data_vm;	   /* VM_WRITE & ~VM_SHARED & ~VM_STACK */
@@ -519,8 +545,16 @@ struct mm_struct {
 		seqcount_t write_protect_seq;
 
 		spinlock_t arg_lock; /* protect the below fields */
-		unsigned long start_code, end_code, start_data, end_data;   ///代码段，数据段的起始地址和结束地址
-		unsigned long start_brk, brk, start_stack;                  ///start_brk：堆空间的起始地址，brk:当前堆中vma的结束地址
+		///代码段，数据段的起始地址和结束地址
+		unsigned long start_code, end_code, start_data, end_data;   
+
+		///start_brk：task堆空间的起始地址，
+		///brk:task堆的结束地址,brk通过sys_brk()修改
+		///start_stack:用户态栈起始地址
+		unsigned long start_brk, brk, start_stack;                  
+
+		///arg:应用程序启动时传递参数字符串起始地址和结束地址
+		///env:环境变量起始地址和结束地址
 		unsigned long arg_start, arg_end, env_start, env_end;
 
 		unsigned long saved_auxv[AT_VECTOR_SIZE]; /* for /proc/PID/auxv */

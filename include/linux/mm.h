@@ -2638,10 +2638,10 @@ extern unsigned long __must_check vm_mmap(struct file *, unsigned long,
 
 struct vm_unmapped_area_info {
 #define VM_UNMAPPED_AREA_TOPDOWN 1
-	unsigned long flags;
+	unsigned long flags;      ///0从低往上增长，1从高往低增长
 	unsigned long length;
-	unsigned long low_limit;
-	unsigned long high_limit;
+	unsigned long low_limit;  ///低地址阈值
+	unsigned long high_limit; ///高地址阈值
 	unsigned long align_mask;
 	unsigned long align_offset;
 };

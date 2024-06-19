@@ -61,6 +61,7 @@ static DEFINE_PER_CPU(struct lru_rotate, lru_rotate) = {
  */
 struct lru_pvecs {
 	local_lock_t lock;
+	///可以添加到lru链表的，缓存页向量(满员后，统一添加到相应LRU链表中)
 	struct pagevec lru_add;
 	struct pagevec lru_deactivate_file;
 	struct pagevec lru_deactivate;
@@ -69,6 +70,7 @@ struct lru_pvecs {
 	struct pagevec activate_page;
 #endif
 };
+///定义per cpu变量的缓存页向量组
 static DEFINE_PER_CPU(struct lru_pvecs, lru_pvecs) = {
 	.lock = INIT_LOCAL_LOCK(lock),
 };
@@ -469,6 +471,7 @@ void lru_cache_add(struct page *page)
 	///将page加入页向量组，并判断是否需要刷新
 	///这里为提高性能，对page加入lru做了个批处理，一次性加入15个page
 	if (pagevec_add_and_need_flush(pvec, page))
+		///将pvec一次性加入lru链表
 		__pagevec_lru_add(pvec);
 	local_unlock(&lru_pvecs.lock);
 }
@@ -529,14 +532,18 @@ static void lru_deactivate_file_fn(struct page *page, struct lruvec *lruvec)
 	bool active = PageActive(page);
 	int nr_pages = thp_nr_pages(page);
 
+///page不可回收,退出
 	if (PageUnevictable(page))
 		return;
 
 	/* Some processes are using the page */
+	///page被映射使用中，退出
 	if (page_mapped(page))
 		return;
 
+	///从ACTIVE_LRU中删除
 	del_page_from_lru_list(page, lruvec);
+	///清除PG_active和PG_referenced标记
 	ClearPageActive(page);
 	ClearPageReferenced(page);
 
@@ -546,13 +553,16 @@ static void lru_deactivate_file_fn(struct page *page, struct lruvec *lruvec)
 		 * It can make readahead confusing.  But race window
 		 * is _really_ small and  it's non-critical problem.
 		 */
+		 ///如果需要回写或脏页，加到LRU链表头
 		add_page_to_lru_list(page, lruvec);
+		///设置PG_reclaim标记
 		SetPageReclaim(page);
 	} else {
 		/*
 		 * The page's writeback ends up during pagevec
 		 * We move that page into tail of inactive.
 		 */
+		 ///加到LRU链表尾，尽快回收
 		add_page_to_lru_list_tail(page, lruvec);
 		__count_vm_events(PGROTATED, nr_pages);
 	}
@@ -649,6 +659,7 @@ void lru_add_drain_cpu(int cpu)
  * for example if its invalidation fails due to the page being dirty
  * or under writeback.
  */
+ ///将文件页从LRU_ACTIVE放入LRU_INACTIVE
 void deactivate_file_page(struct page *page)
 {
 	/*
@@ -1037,6 +1048,7 @@ static void __pagevec_lru_add_fn(struct page *page, struct lruvec *lruvec)
 	 * looking at the same page) and the evictable page will be stranded
 	 * in an unevictable LRU.
 	 */
+	 ///设置PG_lru标志
 	SetPageLRU(page);
 	smp_mb__after_atomic();
 
@@ -1064,6 +1076,7 @@ void __pagevec_lru_add(struct pagevec *pvec)
 	struct lruvec *lruvec = NULL;
 	unsigned long flags = 0;
 
+///遍历pvec所有页面
 	for (i = 0; i < pagevec_count(pvec); i++) {
 		struct page *page = pvec->pages[i];
 

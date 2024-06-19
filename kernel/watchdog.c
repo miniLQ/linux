@@ -249,6 +249,7 @@ static void update_report_ts(void)
 /* Commands for resetting the watchdog */
 static void update_touch_ts(void)
 {
+	///更新softlockup标记
 	__this_cpu_write(watchdog_touch_ts, get_timestamp());
 	update_report_ts();
 }

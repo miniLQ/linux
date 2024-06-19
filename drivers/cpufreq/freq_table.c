@@ -29,6 +29,7 @@ bool policy_has_boost_freq(struct cpufreq_policy *policy)
 }
 EXPORT_SYMBOL_GPL(policy_has_boost_freq);
 
+///注册调频策略频率表
 int cpufreq_frequency_table_cpuinfo(struct cpufreq_policy *policy,
 				    struct cpufreq_frequency_table *table)
 {

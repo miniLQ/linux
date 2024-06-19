@@ -45,10 +45,12 @@ enum cpufreq_table_sorting {
 };
 
 struct cpufreq_cpuinfo {
-	unsigned int		max_freq;
+	///该CPU支持的最大/小频率
+	unsigned int		max_freq; 
 	unsigned int		min_freq;
 
 	/* in 10^(-9) s = nanoseconds */
+	///CPU进行频率切换所需的延迟
 	unsigned int		transition_latency;
 };
 
@@ -65,12 +67,16 @@ struct cpufreq_policy {
 	struct clk		*clk;
 	struct cpufreq_cpuinfo	cpuinfo;/* see above */
 
+	///缺省策略下的最大，最小频率
 	unsigned int		min;    /* in kHz */
 	unsigned int		max;    /* in kHz */
+
+	///CPU当前频率
 	unsigned int		cur;    /* in kHz, only needed if cpufreq
 					 * governors are used */
 	unsigned int		suspend_freq; /* freq to set during suspend */
 
+	///该CPU缺省策略
 	unsigned int		policy; /* see above */
 	unsigned int		last_policy; /* policy before unplug */
 	struct cpufreq_governor	*governor; /* see below */
@@ -306,17 +312,26 @@ __ATTR(_name, 0644, show_##_name, store_##_name)
 
 
 struct cpufreq_driver {
-	char		name[CPUFREQ_NAME_LEN];
-	u16		flags;
+	char		name[CPUFREQ_NAME_LEN];    ///驱动名字，一般芯片相关
+	u16		flags;                         ///标记为，比如CPUFREG_CONST_LOOPS->loops_per_jiffy不会随CPU频率变化而变化
 	void		*driver_data;
 
 	/* needed by all drivers */
+	///perCPU函数指针，每当一个新CPU被注册进系统，该函数被调用
 	int		(*init)(struct cpufreq_policy *policy);
+	///对用户的CPUFreq策略设置进行有效性验证和数据修正
+	///当甚至新策略时，根据新旧策略，检验新策略有效性并对无效设置进行必要修正
 	int		(*verify)(struct cpufreq_policy_data *policy);
 
 	/* define one out of two */
+	///实现该成员函数的CPU一般具备一个范围内自动调频能力。大部分CPU不实现
 	int		(*setpolicy)(struct cpufreq_policy *policy);
 
+	///大多CPU只直线target函数，设置指定频率
+	///实际设定频率接近target_freq
+	///relation:
+	///CPUFREQ_REL_L，设置频率应该大于或等于target_freq
+	///CPUFREQ_REL_H，设置频率应该小于或等于target_freq
 	int		(*target)(struct cpufreq_policy *policy,
 				  unsigned int target_freq,
 				  unsigned int relation);	/* Deprecated */

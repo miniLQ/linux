@@ -70,6 +70,7 @@ static inline unsigned long __range_ok(const void __user *addr, unsigned long si
 
 #define access_ok(addr, size)	__range_ok(addr, size)
 
+///填写异常表
 #define _ASM_EXTABLE(from, to)						\
 	"	.pushsection	__ex_table, \"a\"\n"			\
 	"	.align		3\n"					\
@@ -256,6 +257,9 @@ static inline void __user *__uaccess_mask_ptr(const void __user *ptr)
  * The "__xxx_error" versions set the third argument to -EFAULT if an error
  * occurs, and leave it unchanged on success.
  */
+///异常修正地址.fixup
+///填写异常表_ASM_EXTABLE(1b, 3b)	
+///异常表条目中的值是相对值
 #define __get_mem_asm(load, reg, x, addr, err)				\
 	asm volatile(							\
 	"1:	" load "	" reg "1, [%2]\n"			\
