@@ -240,7 +240,8 @@ static u64 __maybe_unused gic_read_iar(void)
 	if (cpus_have_const_cap(ARM64_WORKAROUND_CAVIUM_23154))
 		return gic_read_iar_cavium_thunderx();
 	else
-		return gic_read_iar_common();
+		return gic_read_iar_common();		//实际上就是读寄存器 ICC_IAR1_EL1寄存器，查GICv3的文档，
+											//可以知道这个寄存器就是来获取INTID的，这个也就可以判断是否有中断发生
 }
 #endif
 
@@ -688,11 +689,11 @@ static u32 do_read_iar(struct pt_regs *regs)
 		 * actually only allow NMIs before reading IAR, and then
 		 * restore it to what it was.
 		 */
-		pmr = gic_read_pmr();
+		pmr = gic_read_pmr();		//读取pmr寄存器
 		gic_pmr_mask_irqs();
 		isb();
 
-		iar = gic_read_iar();
+		iar = gic_read_iar();		//读取iar寄存器
 
 		gic_write_pmr(pmr);
 	} else {
@@ -706,11 +707,11 @@ static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs
 {
 	u32 irqnr;
 
-	irqnr = do_read_iar(regs);
+	irqnr = do_read_iar(regs);			//读取GIC中断控制器的GICD寄存器，从而获取中断号INTID
 
 	/* Check for special IDs first */
-	if ((irqnr >= 1020 && irqnr <= 1023))
-		return;
+	if ((irqnr >= 1020 && irqnr <= 1023))		//这些INTID为何屏蔽呢？
+		return;									//可以在Gicv3_trim.pdf的第2.2.1章找到原因，这些INTID有特殊用法
 
 	if (gic_supports_nmi() &&
 	    unlikely(gic_read_rpr() == GICD_INT_RPR_PRI(GICD_INT_NMI_PRI))) {
@@ -727,7 +728,8 @@ static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs
 		gic_write_eoir(irqnr);
 	else
 		isb();
-
+	
+	//最终调用handle_domain_irq函数
 	if (handle_domain_irq(gic_data.domain, irqnr, regs)) {
 		WARN_ONCE(true, "Unexpected interrupt received!\n");
 		gic_deactivate_unhandled(irqnr);
@@ -1790,7 +1792,7 @@ static int __init gic_init_bases(void __iomem *dist_base,
 			pr_err("Failed to initialize MBIs\n");
 	}
 
-	set_handle_irq(gic_handle_irq);
+	set_handle_irq(gic_handle_irq);	//设置handle_arch_irq
 
 	gic_update_rdist_properties();
 

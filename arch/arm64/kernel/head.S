@@ -536,8 +536,8 @@ SYM_FUNC_START_LOCAL(__primary_switched)
 
 	init_cpu_task x4, x5, x6
 
-	adr_l	x8, vectors			// load VBAR_EL1 with virtual
-	msr	vbar_el1, x8			// vector table address
+	adr_l	x8, vectors			// load VBAR_EL1 with virtual	//将异常向量表的地址传入X8寄存器
+	msr	vbar_el1, x8			// vector table address			//将x8寄存器内的异常向量表地址写入vbar_el1
 	isb
 
 	stp	x29, x30, [sp, #-16]!

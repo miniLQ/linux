@@ -643,7 +643,8 @@ int handle_irq_desc(struct irq_desc *desc)
 	if (WARN_ON_ONCE(!in_irq() && handle_enforce_irqctx(data)))
 		return -EPERM;
 
-	generic_handle_irq_desc(desc);
+	generic_handle_irq_desc(desc);	// 走到这里，实际调用的就是用户自定义的中断处理函数
+									// 用户在使用request_irq的时候，会将中断处理函数注册进desc结构体
 	return 0;
 }
 EXPORT_SYMBOL_GPL(handle_irq_desc);
@@ -696,7 +697,7 @@ int handle_domain_irq(struct irq_domain *domain,
 	irq_enter();
 
 	/* The irqdomain code provides boundary checks */
-	desc = irq_resolve_mapping(domain, hwirq);
+	desc = irq_resolve_mapping(domain, hwirq);		// 硬件中断号INTID和软件irq number的映射
 	if (likely(desc))
 		handle_irq_desc(desc);
 	else

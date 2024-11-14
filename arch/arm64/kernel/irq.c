@@ -81,7 +81,7 @@ static void default_handle_fiq(struct pt_regs *regs)
 	panic("FIQ taken without a root FIQ handler\n");
 }
 
-void (*handle_arch_irq)(struct pt_regs *) __ro_after_init = default_handle_irq;
+void (*handle_arch_irq)(struct pt_regs *) __ro_after_init = default_handle_irq;	//设置默认handle的irq处理函数
 void (*handle_arch_fiq)(struct pt_regs *) __ro_after_init = default_handle_fiq;
 
 int __init set_handle_irq(void (*handle_irq)(struct pt_regs *))
@@ -89,7 +89,8 @@ int __init set_handle_irq(void (*handle_irq)(struct pt_regs *))
 	if (handle_arch_irq != default_handle_irq)
 		return -EBUSY;
 
-	handle_arch_irq = handle_irq;
+	handle_arch_irq = handle_irq;	//从这里可以看到，肯定是某个地方调用了set_handle_irq函数通过传函数指针的方式设置了handle_arch_irq
+	// 请跳转linux-5.15/drivers/irqchip/irq-gic-v3.c 中的gic_init_bases函数
 	pr_info("Root IRQ handler: %ps\n", handle_irq);
 	return 0;
 }

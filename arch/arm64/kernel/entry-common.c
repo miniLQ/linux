@@ -266,7 +266,7 @@ static void do_interrupt_handler(struct pt_regs *regs,
 	if (on_thread_stack())
 		call_on_irq_stack(regs, handler);
 	else
-		handler(regs);
+		handler(regs);	// 也就是handle_arch_irq函数
 }
 
 extern void (*handle_arch_irq)(struct pt_regs *);
@@ -663,11 +663,14 @@ static void noinstr el0_interrupt(struct pt_regs *regs,
 {
 	enter_from_user_mode(regs);
 
+	// 写DAIF寄存器, 实际调用为 msr daif 0x80|0x40
 	write_sysreg(DAIF_PROCCTX_NOIRQ, daif);
 
 	if (regs->pc & BIT(55))
 		arm64_apply_bp_hardening();
-
+	
+	//此函数其实就是执行传入的handle_arch_irq函数，那handle_arch_irq是什么时候设置的呢？
+	// 请跳转linux-5.15/arch/arm64/kernel/irq.c中的set_handle_irq函数
 	do_interrupt_handler(regs, handler);
 
 	exit_to_user_mode(regs);
@@ -675,9 +678,11 @@ static void noinstr el0_interrupt(struct pt_regs *regs,
 
 static void noinstr __el0_irq_handler_common(struct pt_regs *regs)
 {
+	//传入参数handle_arch_irq函数，这个参数是一个函数指针
 	el0_interrupt(regs, handle_arch_irq);
 }
 
+// 对应异常向量表中的aarch64异步异常中的irq，也就是VBAR+0x480
 asmlinkage void noinstr el0t_64_irq_handler(struct pt_regs *regs)
 {
 	__el0_irq_handler_common(regs);

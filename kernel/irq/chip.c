@@ -266,6 +266,7 @@ int irq_startup(struct irq_desc *desc, bool resend, bool force)
 		switch (__irq_startup_managed(desc, aff, force)) {
 		case IRQ_STARTUP_NORMAL:
 			if (d->chip->flags & IRQCHIP_AFFINITY_PRE_STARTUP)
+				// 设置中断亲和性
 				irq_setup_affinity(desc);
 			ret = __irq_startup(desc);
 			if (!(d->chip->flags & IRQCHIP_AFFINITY_PRE_STARTUP))

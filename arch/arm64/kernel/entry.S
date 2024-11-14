@@ -35,6 +35,7 @@
 	.endr
 	.endm
 
+	// kernel_vertry的函数定义
 	.macro kernel_ventry, el:req, ht:req, regsize:req, label:req
 	.align 7
 #ifdef CONFIG_UNMAP_KERNEL_AT_EL0
@@ -94,7 +95,7 @@ alternative_else_nop_endif
 	sub	sp, sp, x0
 	mrs	x0, tpidrro_el0
 #endif
-	b	el\el\ht\()_\regsize\()_\label
+	b	el\el\ht\()_\regsize\()_\label		//kernel_ventry最终跳转这个函数
 	.endm
 
 	.macro tramp_alias, dst, sym
@@ -491,18 +492,19 @@ tsk	.req	x28		// current thread_info
 
 	.align	11
 SYM_CODE_START(vectors)
+	// vectors就是异常向量表
 	kernel_ventry	1, t, 64, sync		// Synchronous EL1t
 	kernel_ventry	1, t, 64, irq		// IRQ EL1t
 	kernel_ventry	1, t, 64, fiq		// FIQ EL1h
 	kernel_ventry	1, t, 64, error		// Error EL1t
 
-	///linux异常向量入口，这里是同步异常，kernel_ventry宏展开为el1_sync
+	///linux异常向量入口，这里是同步异常，kernel_ventry宏展开为el1h_64_sync
 	kernel_ventry	1, h, 64, sync		// Synchronous EL1h
 	kernel_ventry	1, h, 64, irq		// IRQ EL1h
 	kernel_ventry	1, h, 64, fiq		// FIQ EL1h
 	kernel_ventry	1, h, 64, error		// Error EL1h
 
-	///aarch64 异常向量入口
+	///aarch64 异常向量入口，kernel_ventry宏展开为el0t_64_sync
 	kernel_ventry	0, t, 64, sync		// Synchronous 64-bit EL0
 	kernel_ventry	0, t, 64, irq		// IRQ 64-bit EL0
 	kernel_ventry	0, t, 64, fiq		// FIQ 64-bit EL0
@@ -548,9 +550,9 @@ SYM_CODE_END(__bad_stack)
 
 	.macro entry_handler el:req, ht:req, regsize:req, label:req
 SYM_CODE_START_LOCAL(el\el\ht\()_\regsize\()_\label)
-	kernel_entry \el, \regsize
+	kernel_entry \el, \regsize							//执行kernel_entry函数，传入参数el以及regsize
 	mov	x0, sp
-	bl	el\el\ht\()_\regsize\()_\label\()_handler
+	bl	el\el\ht\()_\regsize\()_\label\()_handler		//跳转相应的handler函数
 	.if \el == 0
 	b	ret_to_user
 	.else
@@ -562,25 +564,25 @@ SYM_CODE_END(el\el\ht\()_\regsize\()_\label)
 /*
  * Early exception handlers
  */
-	entry_handler	1, t, 64, sync
-	entry_handler	1, t, 64, irq
-	entry_handler	1, t, 64, fiq
-	entry_handler	1, t, 64, error
+	entry_handler	1, t, 64, sync          //实际函数: el1t_64_sync_handler
+	entry_handler	1, t, 64, irq          //实际函数: el1t_64_irq_handler
+	entry_handler	1, t, 64, fiq          //实际函数: el1t_64_fiq_handler
+	entry_handler	1, t, 64, error          //实际函数: el1t_64_error_handler
 
-	entry_handler	1, h, 64, sync
-	entry_handler	1, h, 64, irq
-	entry_handler	1, h, 64, fiq
-	entry_handler	1, h, 64, error
+	entry_handler	1, h, 64, sync          //实际函数: el1h_64_sync_handler
+	entry_handler	1, h, 64, irq          //实际函数: el1h_64_irq_handler
+	entry_handler	1, h, 64, fiq          //实际函数: el1h_64_fiq_handler
+	entry_handler	1, h, 64, error          //实际函数: el1h_64_error_handler
 
-	entry_handler	0, t, 64, sync
-	entry_handler	0, t, 64, irq
-	entry_handler	0, t, 64, fiq
-	entry_handler	0, t, 64, error
+	entry_handler	0, t, 64, sync          //实际函数: el0t_64_sync_handler
+	entry_handler	0, t, 64, irq          //实际函数: el0t_64_irq_handler
+	entry_handler	0, t, 64, fiq          //实际函数: el0t_64_fiq_handler
+	entry_handler	0, t, 64, error          //实际函数: el0t_64_error_handler
 
-	entry_handler	0, t, 32, sync
-	entry_handler	0, t, 32, irq
-	entry_handler	0, t, 32, fiq
-	entry_handler	0, t, 32, error
+	entry_handler	0, t, 32, sync          //实际函数: el0t_32_sync_handler
+	entry_handler	0, t, 32, irq          //实际函数: el0t_32_irq_handler
+	entry_handler	0, t, 32, fiq          //实际函数: el0t_32_fiq_handler
+	entry_handler	0, t, 32, error          //实际函数: el0t_32_error_handler
 
 SYM_CODE_START_LOCAL(ret_to_kernel)
 	kernel_exit 1   ///恢复上下文
