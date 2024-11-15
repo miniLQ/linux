@@ -1751,6 +1751,7 @@ static int __init gic_init_bases(void __iomem *dist_base,
 	/*
 	 * Find out how many interrupts are supported.
 	 */
+	// 读取GIC控制器的GICD_TYPER寄存器，也就是中断控制器类型寄存器
 	typer = readl_relaxed(gic_data.dist_base + GICD_TYPER);
 	gic_data.rdists.gicd_typer = typer;
 
@@ -1766,7 +1767,8 @@ static int __init gic_init_bases(void __iomem *dist_base,
 	 */
 	if (!(gic_data.flags & FLAGS_WORKAROUND_CAVIUM_ERRATUM_38539))
 		gic_data.rdists.gicd_typer2 = readl_relaxed(gic_data.dist_base + GICD_TYPER2);
-
+	
+	// 分配irq_domain
 	gic_data.domain = irq_domain_create_tree(handle, &gic_irq_domain_ops,
 						 &gic_data);
 	gic_data.rdists.rdist = alloc_percpu(typeof(*gic_data.rdists.rdist));
@@ -1822,6 +1824,7 @@ out_free:
 
 static int __init gic_validate_dist_version(void __iomem *dist_base)
 {
+	//读取GIC控制器的GICD_PIDR2寄存器
 	u32 reg = readl_relaxed(dist_base + GICD_PIDR2) & GIC_PIDR2_ARCH_MASK;
 
 	if (reg != GIC_PIDR2_ARCH_GICv3 && reg != GIC_PIDR2_ARCH_GICv4)
@@ -1951,6 +1954,7 @@ static void __init gic_of_setup_kvm_info(struct device_node *node)
 	vgic_set_kvm_info(&gic_v3_kvm_info);
 }
 
+// 当开机后和设备树匹配后查找到interrupt-controller后，会走到这个函数
 static int __init gic_of_init(struct device_node *node, struct device_node *parent)
 {
 	void __iomem *dist_base;
@@ -1971,6 +1975,7 @@ static int __init gic_of_init(struct device_node *node, struct device_node *pare
 		goto out_unmap_dist;
 	}
 
+	// 解析设备树，获取#redistributor-regions字段
 	if (of_property_read_u32(node, "#redistributor-regions", &nr_redist_regions))
 		nr_redist_regions = 1;
 
@@ -2000,6 +2005,7 @@ static int __init gic_of_init(struct device_node *node, struct device_node *pare
 
 	gic_enable_of_quirks(node, gic_quirks, &gic_data);
 
+	// 此函数是本函数最重要的函数
 	err = gic_init_bases(dist_base, rdist_regs, nr_redist_regions,
 			     redist_stride, &node->fwnode);
 	if (err)
@@ -2021,6 +2027,7 @@ out_unmap_dist:
 	return err;
 }
 
+// 创建一个叫__irqchip_of_table_，并把name="arm,gic-v3"和fn="gic_of_init"传入
 IRQCHIP_DECLARE(gic_v3, "arm,gic-v3", gic_of_init);
 
 #ifdef CONFIG_ACPI

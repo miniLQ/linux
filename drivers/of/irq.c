@@ -486,9 +486,11 @@ void __init of_irq_init(const struct of_device_id *matches)
 	INIT_LIST_HEAD(&intc_desc_list);
 	INIT_LIST_HEAD(&intc_parent_list);
 
+	// 从系统devicetree的根节点开始，遍历系统所有的device node,查找与matches数组相匹配device node
 	for_each_matching_node_and_match(np, matches, &match) {
+		// 查找compatible="interrupt-controller"的节点
 		if (!of_property_read_bool(np, "interrupt-controller") ||
-				!of_device_is_available(np))
+				!of_device_is_available(np))	//判断节点是否有效，节点是否被标记为可用（status = "okay";）
 			continue;
 
 		if (WARN(!match->data, "of_irq_init: no init function for %s\n",
@@ -505,11 +507,16 @@ void __init of_irq_init(const struct of_device_id *matches)
 			goto err;
 		}
 
-		desc->irq_init_cb = match->data;
+		//这个match->data就是指的IRQCHIP_DECLARE(gic_v3, "arm,gic-v3", gic_of_init);的第三个参数初始化函数
+		desc->irq_init_cb = match->data;	
 		desc->dev = of_node_get(np);
+
+        /* 获取该中断控制器的父中断控制器node，由该中断控制器device node中的
+            interrupt-parent property指定 */
 		desc->interrupt_parent = of_irq_find_parent(np);
 		if (desc->interrupt_parent == np)
 			desc->interrupt_parent = NULL;
+		/* 将该中断控制器的描述符添加到中断控制器描符链表 */
 		list_add_tail(&desc->list, &intc_desc_list);
 	}
 
@@ -518,6 +525,9 @@ void __init of_irq_init(const struct of_device_id *matches)
 	 * That one goes first, followed by the controllers that reference it,
 	 * followed by the ones that reference the 2nd level controllers, etc.
 	 */
+	
+	/* GIC中断控制器的node中的interrupt-parent property指向其自身，所以GIC中断控制器的描
+        述符号中的interrupt-parent变量为NULL */
 	while (!list_empty(&intc_desc_list)) {
 		/*
 		 * Process all controllers with the current 'parent'.

@@ -1341,6 +1341,8 @@ static inline int of_get_available_child_count(const struct device_node *np)
 		     .data = (fn == (fn_type)NULL) ? fn : fn }
 
 #if defined(CONFIG_OF) && !defined(MODULE)
+// 这个_OF_DECLAREH的宏函数会创建一个名为__#table_of_table的特殊的section
+// 我们所跟踪的GICv3的初始化所用的宏为IRQCHIP_DECLARE，最终调用的也就是这个宏函数
 #define _OF_DECLARE(table, name, compat, fn, fn_type)			\
 	static const struct of_device_id __of_table_##name		\
 		__used __section("__" #table "_of_table")		\

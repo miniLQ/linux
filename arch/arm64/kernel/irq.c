@@ -109,7 +109,7 @@ void __init init_IRQ(void)
 {
 	init_irq_stacks();
 	init_irq_scs();
-	irqchip_init();
+	irqchip_init();	//内核中断子系统的入口，负责初始化所有注册的中断控制器驱动程序
 
 	if (system_uses_irq_prio_masking()) {
 		/*

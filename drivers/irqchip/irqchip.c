@@ -28,7 +28,7 @@ extern struct of_device_id __irqchip_of_table[];
 
 void __init irqchip_init(void)
 {
-	of_irq_init(__irqchip_of_table);
+	of_irq_init(__irqchip_of_table);	//__irqchip_of_table是如何创建的呢？请跳转linux-5.15/include/linux/of.h#1344
 	acpi_probe_device_table(irqchip);
 }
 

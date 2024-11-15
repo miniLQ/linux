@@ -150,6 +150,8 @@ struct irq_domain *__irq_domain_add(struct fwnode_handle *fwnode, unsigned int s
 		    (!IS_ENABLED(CONFIG_IRQ_DOMAIN_NOMAP) && direct_max)))
 		return NULL;
 
+    /* 分配irq_domain数据结构空间，sizeof(unsigned int) * size ：代表了结构中
+        linear_revmap[]数组元素的内存大小 */
 	domain = kzalloc_node(struct_size(domain, revmap, size),
 			      GFP_KERNEL, of_node_to_nid(to_of_node(fwnode)));
 	if (!domain)
@@ -190,7 +192,7 @@ struct irq_domain *__irq_domain_add(struct fwnode_handle *fwnode, unsigned int s
 		}
 
 		strreplace(name, '/', ':');
-
+		/* 设置domain->name为device node指针 */	
 		domain->name = name;
 		domain->fwnode = fwnode;
 		domain->flags |= IRQ_DOMAIN_NAME_ALLOCATED;
@@ -212,28 +214,30 @@ struct irq_domain *__irq_domain_add(struct fwnode_handle *fwnode, unsigned int s
 	fwnode_dev_initialized(fwnode, true);
 
 	/* Fill structure */
+	/* 填充irq_domain 结构数据 */
 	INIT_RADIX_TREE(&domain->revmap_tree, GFP_KERNEL);
 	mutex_init(&domain->revmap_mutex);
-	domain->ops = ops;
-	domain->host_data = host_data;
-	domain->hwirq_max = hwirq_max;
+	domain->ops = ops;					/* 该中断控制器对应的irq_domain_ops函数 */
+	domain->host_data = host_data;		/* 该中断控制器的私有数据 */
+	domain->hwirq_max = hwirq_max;		/* 该中断控制器支持的最大硬件中断数 */
 
 	if (direct_max) {
 		size = direct_max;
 		domain->flags |= IRQ_DOMAIN_FLAG_NO_MAP;
 	}
 
-	domain->revmap_size = size;
+	domain->revmap_size = size;			/* 线性映射的硬中断的size */
 
-	irq_domain_check_hierarchy(domain);
+	irq_domain_check_hierarchy(domain); /* 检查是否为分级的irq_domain,如果是该中断控制器
+        支持irq_domian_ops->alloc函数则该中断控制的irq_domain支持分级 */
 
 	mutex_lock(&irq_domain_mutex);
 	debugfs_add_domain_dir(domain);
-	list_add(&domain->link, &irq_domain_list);
+	list_add(&domain->link, &irq_domain_list); /* 添加该irq_domain到系统irq_domain_list链表*/
 	mutex_unlock(&irq_domain_mutex);
 
 	pr_debug("Added domain %s\n", domain->name);
-	return domain;
+	return domain; /* 返回该中断控制器对应的irq_domain结构指针 */
 }
 EXPORT_SYMBOL_GPL(__irq_domain_add);
 
