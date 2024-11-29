@@ -299,8 +299,10 @@ u64 cpu_logical_map(unsigned int cpu)
 void __init __no_sanitize_address setup_arch(char **cmdline_p)
 {
 	///初始化，init_mm的地址，定义在arch/arm64/kernel/vmlinux.lds
+	// 创建系统第一个mm结构体，成员函数.pgd指向swapper_pg_dir
 	setup_initial_init_mm(_stext, _etext, _edata, _end);
 
+	// 将cmdline_p指针指向boot_command_line，而boot_command_line将会在后面的setup_machine_fdt中解析设备树传入
 	*cmdline_p = boot_command_line;
 
 	/*
@@ -314,6 +316,17 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	early_fixmap_init();   ///fixmap区映射,只创建中间级转换页表,最后一级页表未创建
 	early_ioremap_init();  ///早期ioremap映射,依赖fixmap转换表
 
+	/*
+	__fdt_pointer: fdt phy, head.S中的__primary_switched阶段会执行str_l	x21, __fdt_pointer, x5，将x21中的fdt地址存放到全局变量__fdt_pointer
+	setup_machine_fdt: 校验fdt合法性，并通过下面3个回调函数扫描fdt中预留的memory及传入内核参数
+	1. 扫描device tree函数：of_scan_flat_dt
+	2. 3个回调函数：
+	early_init_dt_scan_chosen： 解析chosen信息，其中一般包括initrd、bootargs，保留命令行参数到boot_command_line全局变量中
+	early_init_dt_scan_root: 从fdt中初始化{size, address}结构信息，保存到dt_root_addr_cells,dt_root_size_cells中
+	early_init_dt_scan_memory：扫描fdt中memory区域，寻找device_type="memory"的节点，并通过以下函数将该区域添加到memblock管理系统
+		early_init_dt_add_memory_arch
+		memblock_add：将region添加到memblock.memory中
+	*/
 	setup_machine_fdt(__fdt_pointer);///设备树映射,读取内存信息后，填入memblock系统，用于后面伙伴系统
 
 	/*
@@ -321,6 +334,9 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	 * cpufeature code and early parameters.
 	 */
 	jump_label_init();
+	/* 
+	解析boot_command_line, 并设置done标志位
+	*/
 	parse_early_param();
 
 	/*
@@ -337,6 +353,14 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	cpu_uninstall_idmap();
 
 	xen_early_init();
+	/*
+	 * 1. 使用回调函数fdt_find_uefi_params获取fdt中关于uefi的信息，所有要扫描的参数包含在dt_param这个全局数组中
+	 *         例如：system table, memmap address, memmap size, memmap desc. size, memmap desc. version
+	 * 2. 将解析出的内存区域加入memblock.reserve区域
+	 * 3. 调用uefi_init(), reserve_regions()等函数进行uefi模式初始化
+	 * 4. 初始化完成后，将前面reserve的区域unreserve
+	 * 
+	 */
 	efi_init();
 
 	if (!efi_enabled(EFI_BOOT) && ((u64)_text % MIN_KIMG_ALIGN) != 0)
@@ -358,6 +382,10 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	acpi_boot_table_init();
 
 	if (acpi_disabled)
+		/*
+		 * 将dtb转换为device_node tree，根节点为全局变量 of_allnodes
+		 * 后续内核会遍历tree来初始化描述的各个device
+		 */
 		unflatten_device_tree();
 
 	///至此，内核已经可以访问所有物理内存
@@ -365,9 +393,17 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	bootmem_init();
 
 	kasan_init();
-
+	/*
+	 * 将memblock.memory挂载到iomem_resource资源树下, 资源树是一颗倒挂的树
+	 * request_resource：将设备实体登记注册到总线空间链
+	 * 在遍历memblock.memory过程中，会检查kernel_code,kernel_data是否属于某region，如果是则挂载到该region下
+	 * 
+	 */
 	request_standard_resources();
-
+	/*
+	 * early_ioremap 功能到此就结束了
+	 * 在buddy系统还未建立前，要进行寄存器访问基本职能使用early_ioremap 功能
+	 */
 	early_ioremap_reset();
 
 	if (acpi_disabled)

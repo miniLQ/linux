@@ -90,6 +90,7 @@ static int __init __reserved_mem_alloc_size(unsigned long node,
 	bool nomap;
 	int ret;
 
+	//该子节点需要配置 size属性，该函数就是针对配置size属性的子节点
 	prop = of_get_flat_dt_prop(node, "size", &len);
 	if (!prop)
 		return -EINVAL;
@@ -98,8 +99,10 @@ static int __init __reserved_mem_alloc_size(unsigned long node,
 		pr_err("invalid size property in '%s' node.\n", uname);
 		return -EINVAL;
 	}
+	//确定size值
 	size = dt_mem_next_cell(dt_root_size_cells, &prop);
 
+	//确定该子节点配置的 alignment属性
 	prop = of_get_flat_dt_prop(node, "alignment", &len);
 	if (prop) {
 		if (len != dt_root_addr_cells * sizeof(__be32)) {
@@ -109,10 +112,11 @@ static int __init __reserved_mem_alloc_size(unsigned long node,
 		}
 		align = dt_mem_next_cell(dt_root_addr_cells, &prop);
 	}
-
+	//确定该子节点是否配置了no-map属性
 	nomap = of_get_flat_dt_prop(node, "no-map", NULL) != NULL;
 
 	/* Need adjust the alignment to satisfy the CMA requirement */
+	//对于CMA节点，对于页大小为4k需要align不能超过4M
 	if (IS_ENABLED(CONFIG_CMA)
 	    && of_flat_dt_is_compatible(node, "shared-dma-pool")
 	    && of_get_flat_dt_prop(node, "reusable", NULL)
@@ -123,6 +127,10 @@ static int __init __reserved_mem_alloc_size(unsigned long node,
 		align = max(align, (phys_addr_t)PAGE_SIZE << order);
 	}
 
+    //确定是否配置了alloc-ranges属性值
+    //通过alloc-ranges确定从memblock中的某个区域选取内存
+    //如果alloc-ranges没有配置，则从整个memblock中选取
+    //最后将选好的base返回
 	prop = of_get_flat_dt_prop(node, "alloc-ranges", &len);
 	if (prop) {
 
@@ -151,6 +159,7 @@ static int __init __reserved_mem_alloc_size(unsigned long node,
 		}
 
 	} else {
+		//当没有配置alloc-ranges时，注意start、end参数是0
 		ret = early_init_dt_alloc_reserved_memory_arch(size, align,
 							0, 0, nomap, &base);
 		if (ret == 0)
@@ -272,7 +281,11 @@ void __init fdt_init_reserved_mem(void)
 			prop = of_get_flat_dt_prop(node, "linux,phandle", &len);
 		if (prop)
 			rmem->phandle = of_read_number(prop, len/4);
-
+		
+		//注意这里，size为0的情况：
+        //   1) 节点中没有配置reg属性  ---- 需要继续确认size 属性值
+        //   2) 没有设置reg，而是设置了size属性  ----此时初始值都为0
+        //当通过size属性时，还需要同时配置alloc_ranges属性，用以从memblock中查找range
 		if (rmem->size == 0)
 			err = __reserved_mem_alloc_size(node, rmem->name,
 						 &rmem->base, &rmem->size);

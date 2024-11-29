@@ -569,27 +569,38 @@ static int __init __fdt_scan_reserved_mem(unsigned long node, const char *uname,
 {
 	static int found;
 	int err;
-
+	//确认是否是第一次找到 reserved-memory这个节点
 	if (!found && depth == 1 && strcmp(uname, "reserved-memory") == 0) {
+		//确认reserved-memory这个节点是否满足要求为根节点
+        //需要配置三个属性：
+        //  1) #size-cells
+        //  2) #address-cells
+        //  3) ranges
+        //如果都配置了，则会返回0，否则返回errno
 		if (__reserved_mem_check_root(node) != 0) {
 			pr_err("Reserved memory: unsupported node format, ignoring\n");
 			/* break scan */
-			return 1;
+			return 1; //如果配置出问题，返回1，表示将跳出对reserved-memory的扫描
 		}
 		found = 1;
 		/* scan next node */
-		return 0;
+		return 0; //如果根节点配置ok，返回0，表示找到了reserved-memory节点，继续扫描子节点
 	} else if (!found) {
 		/* scan next node */
-		return 0;
+		return 0; //还没有找到跟节点 reserved-memory，返回0，继续扫描
 	} else if (found && depth < 2) {
 		/* scanning of /reserved-memory has been finished */
-		return 1;
+		return 1; //当到了reserved-memory的尾部了，depth会回到1，标记reserved-memory扫描完成
 	}
 
+	//遇到子节点中设置了status属性，则确认是否设置了ok或okay
+    //没有设置status，或设置ok/okay，都认为是available的，返回true，否则为false
 	if (!of_fdt_device_is_available(initial_boot_params, node))
 		return 0;
 
+	//两种方式处理reserved-memory节点中的子节点
+    //   1) 设置reg属性；
+    //   2) 没有设置reg属性，但设置了size属性
 	err = __reserved_mem_reserve_reg(node, uname);
 	if (err == -ENOENT && of_get_flat_dt_prop(node, "size", NULL))
 		fdt_reserved_mem_save_node(node, uname, 0, 0);
@@ -1089,22 +1100,27 @@ u64 __init dt_mem_next_cell(int s, const __be32 **cellp)
 int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
 				     int depth, void *data)
 {
+	// 查找节点中属性为device_type，并获取值
 	const char *type = of_get_flat_dt_prop(node, "device_type", NULL);
 	const __be32 *reg, *endp;
 	int l;
 	bool hotpluggable;
 
 	/* We are scanning "memory" nodes only */
+	// 只查找device_type的值为memory的节点
 	if (type == NULL || strcmp(type, "memory") != 0)
 		return 0;
-
+	
+	// 确认节点中是否由linux,usable-memory属性
 	reg = of_get_flat_dt_prop(node, "linux,usable-memory", &l);
 	if (reg == NULL)
-		reg = of_get_flat_dt_prop(node, "reg", &l);
+		reg = of_get_flat_dt_prop(node, "reg", &l);//如果没有，则查找reg属性
 	if (reg == NULL)
 		return 0;
 
 	endp = reg + (l / sizeof(__be32));
+
+	// 确认该memory是否为hotplug
 	hotpluggable = of_get_flat_dt_prop(node, "hotpluggable", NULL);
 
 	pr_debug("memory scan node %s, reg size %d,\n", uname, l);
@@ -1115,7 +1131,7 @@ int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
 		base = dt_mem_next_cell(dt_root_addr_cells, &reg);
 		size = dt_mem_next_cell(dt_root_size_cells, &reg);
 
-		if (size == 0)
+		if (size == 0)	// 如果reg属性中的size为0，则跳过
 			continue;
 		pr_debug(" - %llx, %llx\n", base, size);
 
@@ -1142,15 +1158,19 @@ int __init early_init_dt_scan_chosen(unsigned long node, const char *uname,
 
 	pr_debug("search \"chosen\", depth: %d, uname: %s\n", depth, uname);
 
+	// 判断是否存在choosen节点
 	if (depth != 1 || !data ||
 	    (strcmp(uname, "chosen") != 0 && strcmp(uname, "chosen@0") != 0))
 		return 0;
 
+    //解析initrd的起始物理地址和size
 	early_init_dt_check_for_initrd(node);
 	early_init_dt_check_for_elfcorehdr(node);
+	// 解析linux,usable-memory-range属性部分
 	early_init_dt_check_for_usable_mem_range(node);
 
 	/* Retrieve command line */
+	// 从根节点去查找bootargs
 	p = of_get_flat_dt_prop(node, "bootargs", &l);
 	if (p != NULL && l > 0)
 		strlcpy(data, p, min(l, COMMAND_LINE_SIZE));
@@ -1160,6 +1180,7 @@ int __init early_init_dt_scan_chosen(unsigned long node, const char *uname,
 	 * managed to set the command line, unless CONFIG_CMDLINE_FORCE
 	 * is set in which case we override whatever was found earlier.
 	 */
+// 这里的意思是根据一些宏的开关来往CMDLINE的后面拼接一些字符串
 #ifdef CONFIG_CMDLINE
 #if defined(CONFIG_CMDLINE_EXTEND)
 	strlcat(data, " ", COMMAND_LINE_SIZE);
@@ -1174,7 +1195,7 @@ int __init early_init_dt_scan_chosen(unsigned long node, const char *uname,
 #endif /* CONFIG_CMDLINE */
 
 	pr_debug("Command line is: %s\n", (char *)data);
-
+	//解析chosen节点下rng-seed属性
 	rng_seed = of_get_flat_dt_prop(node, "rng-seed", &l);
 	if (rng_seed && l > 0) {
 		add_bootloader_randomness(rng_seed, l);
