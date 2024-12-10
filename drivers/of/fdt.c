@@ -387,12 +387,14 @@ void *__unflatten_device_tree(const void *blob,
 	pr_debug("size: %08x\n", fdt_totalsize(blob));
 	pr_debug("version: %08x\n", fdt_version(blob));
 
+	//check dtb 是否有效，在setup_machine_fdt()中也做过check
 	if (fdt_check_header(blob)) {
 		pr_err("Invalid device tree blob header\n");
 		return NULL;
 	}
 
 	/* First pass, scan for size */
+	//第一次展开，确认所有device_node的总的size
 	size = unflatten_dt_nodes(blob, NULL, dad, NULL);
 	if (size <= 0)
 		return NULL;
@@ -401,6 +403,9 @@ void *__unflatten_device_tree(const void *blob,
 	pr_debug("  size is %d, allocating...\n", size);
 
 	/* Allocate memory for the expanded device tree */
+	//调用回调函数，为所有device_node申请内存，dt_alloc为函数第四个参数
+	// 在unflatten_device_tree中也就是early_init_dt_alloc_memory_arch，实际上也就是memblock_alloc
+	// 返回值mem即为满足size+4大小的物理内存空间对应的线性区域的虚拟地址
 	mem = dt_alloc(size + 4, __alignof__(struct device_node));
 	if (!mem)
 		return NULL;
@@ -412,6 +417,7 @@ void *__unflatten_device_tree(const void *blob,
 	pr_debug("  unflattening %p...\n", mem);
 
 	/* Second pass, do actual unflattening */
+	//第二次展开，进行填充
 	ret = unflatten_dt_nodes(blob, mem, dad, mynodes);
 
 	if (be32_to_cpup(mem + size) != 0xdeadbeef)

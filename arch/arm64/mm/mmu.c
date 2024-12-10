@@ -96,7 +96,7 @@ static phys_addr_t __init early_pgtable_alloc(int shift)
 	phys_addr_t phys;
 	void *ptr;
 
-	///分配PAGE_SIZE的页
+	//从memblock 中申请PAGE_SIZE的空间
 	phys = memblock_phys_alloc(PAGE_SIZE, PAGE_SIZE);
 	if (!phys)
 		panic("Failed to allocate page table page\n");
@@ -224,8 +224,10 @@ static void init_pmd(pud_t *pudp, unsigned long addr, unsigned long end,
 {
 	unsigned long next;
 	pmd_t *pmdp;
-
+	// pudp指定的是pmd 页表的基地址，需要先对其进行映射，映射到 fixmap的FIX_PMD
 	pmdp = pmd_set_fixmap_offset(pudp, addr);   ///转换成虚拟地址，CPU才能访问
+	// 上一级函数是alloc_init_cont_pmd() 可能是连续的pmd映射
+    // 这里将连续的pmd映射分解，按照PMD_SIZE进行逐步映射
 	do {
 		pmd_t old_pmd = READ_ONCE(*pmdp);
 
@@ -251,7 +253,7 @@ static void init_pmd(pud_t *pudp, unsigned long addr, unsigned long end,
 		}
 		phys += next - addr;
 	} while (pmdp++, addr = next, addr != end);
-
+	//同理，映射完需要清理fixmap映射关系
 	pmd_clear_fixmap();
 }
 
@@ -261,12 +263,14 @@ static void alloc_init_cont_pmd(pud_t *pudp, unsigned long addr,
 				phys_addr_t (*pgtable_alloc)(int), int flags)
 {
 	unsigned long next;
+	// 读取pudp 的值，即pud 页表项的值，代表pmd 页表的基地址
 	pud_t pud = READ_ONCE(*pudp);
 
 	/*
 	 * Check for initial section mappings in the pgd/pud.
 	 */
 	BUG_ON(pud_sect(pud));
+	//如果pud 的值为空，则需要通过__pud_populate() 进行填充，这里涉及到了 pgtable_alloc()，创建新的页表
 	if (pud_none(pud)) {
 		pudval_t pudval = PUD_TYPE_TABLE | PUD_TABLE_UXN;
 		phys_addr_t pmd_phys;
@@ -279,13 +283,14 @@ static void alloc_init_cont_pmd(pud_t *pudp, unsigned long addr,
 		pud = READ_ONCE(*pudp);
 	}
 	BUG_ON(pud_bad(pud));
-
+	// 按照pmd逐级映射，通过pmd_cont_addr_end()找到下一个pmd的界限，并将其作为下一次的起始地址
 	do {
 		pgprot_t __prot = prot;
 
 		next = pmd_cont_addr_end(addr, end);
 
 		/* use a contiguous mapping if the range is suitably aligned */
+		//如果映射的地址恰好特殊对齐，则可以连续映射
 		if ((((addr | next | phys) & ~CONT_PMD_MASK) == 0) &&
 		    (flags & NO_CONT_MAPPINGS) == 0)
 			__prot = __pgprot(pgprot_val(prot) | PTE_CONT);
@@ -330,17 +335,22 @@ static void alloc_init_pud(pgd_t *pgdp, unsigned long addr, unsigned long end,
 		p4d = READ_ONCE(*p4dp);
 	}
 	BUG_ON(p4d_bad(p4d));
-
+ 	
+	//获取pudp，对于三级页表来说pudp也就是pgdp
 	pudp = pud_set_fixmap_offset(p4dp, addr);  ///pgd表项保存的是pud的物理地址，要线转换成虚拟地址，CPU才能访问
+	// 按照pud 逐级映射
+    // 对于三级页表来说没有pud，所以，pudp 也就是pgdp，获取的next 直接等于end
+    // 即，对于三级页表来说，在pmd 映射中会映射完整个区域
 	do {
 		pud_t old_pud = READ_ONCE(*pudp);
-
+        // 确定下一次映射的pud 界限
+        // 对于三级页表来说，没有pud 页表，所以，next 直接等于end，整个区域在pmd 中映射完成
 		next = pud_addr_end(addr, end);
 
 		/*
 		 * For 4K granule only, attempt to put down a 1GB block
 		 */
-		if (use_1G_block(addr, next, phys) &&
+		if (use_1G_block(addr, next, phys) && //针对1G block，对于三级页表来说不会进这个case
 		    (flags & NO_BLOCK_MAPPINGS) == 0) {
 			pud_set_huge(pudp, phys, prot);
 
@@ -350,7 +360,7 @@ static void alloc_init_pud(pgd_t *pgdp, unsigned long addr, unsigned long end,
 			 */
 			BUG_ON(!pgattr_change_is_safe(pud_val(old_pud),
 						      READ_ONCE(pud_val(*pudp))));
-		} else {
+		} else { //-----对于三级页表，着重来看这里
 			alloc_init_cont_pmd(pudp, addr, next, phys, prot,
 					    pgtable_alloc, flags);
 
@@ -359,7 +369,8 @@ static void alloc_init_pud(pgd_t *pgdp, unsigned long addr, unsigned long end,
 		}
 		phys += next - addr;
 	} while (pudp++, addr = next, addr != end);
-
+	// 对于三级页表，没有pud一级页表，这里是空函数
+    // 但对于有pud页表的，需要清理fixmap中的FIX_PUD对应的pte值
 	pud_clear_fixmap();
 }
 ///依次动态建立各级页表
@@ -370,25 +381,34 @@ static void __create_pgd_mapping(pgd_t *pgdir, phys_addr_t phys,
 				 int flags)
 {
 	unsigned long addr, end, next;
+	// 确定虚拟地址对应到pgd页表项
 	pgd_t *pgdp = pgd_offset_pgd(pgdir, virt);
 
 	/*
 	 * If the virtual and physical address don't have the same offset
 	 * within a page, we cannot map the region as the caller expects.
 	 */
+	// 要求物理地址和虚拟地址的offset必须一致
 	if (WARN_ON((phys ^ virt) & ~PAGE_MASK))
 		return;
 
+	// 清除物理地址的offset
 	phys &= PAGE_MASK;
+	// 清除虚拟地址的offset，保存到addr中
 	addr = virt & PAGE_MASK;
+	// 确定映射的end的虚拟地址，这段区域必须按照页对齐
 	end = PAGE_ALIGN(virt + size);
 
+	// while循环，开始映射
 	do {
+		// 找到下一个pgd地址作为映射的结束地址，如果超过了end，则选择end
 		next = pgd_addr_end(addr, end);
+		//传入pgd页表项地址、虚拟地址起始地址和结束地址物理地址、prot等开始映射
 		alloc_init_pud(pgdp, addr, next, phys, prot, pgtable_alloc,
 			       flags);
+		//映射完成，物理地址偏移，准备下一次映射
 		phys += next - addr;
-	} while (pgdp++, addr = next, addr != end);
+	} while (pgdp++, addr = next, addr != end);// pgdp移动到下一个页表项，虚拟地址跳到上一次结尾
 }
 
 static phys_addr_t __pgd_pgtable_alloc(int shift)
@@ -677,6 +697,9 @@ static void __init map_kernel(pgd_t *pgdp)
 	 * mapping to install SW breakpoints. Allow this (only) when
 	 * explicitly requested with rodata=off.
 	 */
+	// PAGE_KERNEL_ROX：只读且可执行（当 rodata 开启）。
+	// PAGE_KERNEL_EXEC：可写且可执行（当 rodata 关闭）。
+	// 这是为了支持调试器设置断点时对代码段的写入需求。
 	pgprot_t text_prot = rodata_enabled ? PAGE_KERNEL_ROX : PAGE_KERNEL_EXEC;
 
 	/*
@@ -684,13 +707,21 @@ static void __init map_kernel(pgd_t *pgdp)
 	 * BTI then mark the kernel executable text as guarded pages
 	 * now so we don't have to rewrite the page tables later.
 	 */
+	// 如果当前 CPU 支持 BTI（控制流完整性保护），将内核代码段标记为受保护的页面（PTE_GP）。
+	// BTI 的作用：防止利用漏洞跳转到非法的函数入口点。
 	if (arm64_early_this_cpu_has_bti())
 		text_prot = __pgprot_modify(text_prot, PTE_GP, PTE_GP);
 
 	/*
 	 * Only rodata will be remapped with different permissions later on,
 	 * all other segments are allowed to use contiguous mappings.
-	 */  ///将内核的每个段，分别建立动态页表
+	 */  
+	//将内核的每个段，分别建立动态页表
+	// _stext 到 _etext：内核可执行代码段。
+	// __start_rodata 到 __inittext_begin：只读数据段。
+	// __inittext_begin 到 __inittext_end：初始化代码段。
+	// __initdata_begin 到 __initdata_end：初始化数据段。
+	// _data 到 _end：内核数据段。
 	map_kernel_segment(pgdp, _stext, _etext, text_prot, &vmlinux_text, 0,
 			   VM_NO_GUARD);
 	map_kernel_segment(pgdp, __start_rodata, __inittext_begin, PAGE_KERNEL,
@@ -701,15 +732,22 @@ static void __init map_kernel(pgd_t *pgdp)
 			   &vmlinux_initdata, 0, VM_NO_GUARD);
 	map_kernel_segment(pgdp, _data, _end, PAGE_KERNEL, &vmlinux_data, 0, 0);
 
+	// FIXADDR_START 是 FIXMAP 区域的起始地址。
+	// pgd_offset_pgd(pgdp, FIXADDR_START)：
+	// 计算 FIXMAP 对应的 PGD 位置（页表顶层目录）。
+	// 返回 FIXMAP 地址对应的 PGD 表项指针。
 	if (!READ_ONCE(pgd_val(*pgd_offset_pgd(pgdp, FIXADDR_START)))) {
 		/*
 		 * The fixmap falls in a separate pgd to the kernel, and doesn't
 		 * live in the carveout for the swapper_pg_dir. We can simply
 		 * re-use the existing dir for the fixmap.
 		 */
-		set_pgd(pgd_offset_pgd(pgdp, FIXADDR_START),         ///将init_pg_dir(可以访问fixmap映射)的表项同步到swapper_pg_dir
+		// 在初始化阶段(setup_arch函数)，FIXMAP的页表项最初被设置在 init_pg_dir 中。
+		//此时需要将 init_pg_dir 中的 FIXMAP 页表项同步到 swapper_pg_dir
+		set_pgd(pgd_offset_pgd(pgdp, FIXADDR_START),
 			READ_ONCE(*pgd_offset_k(FIXADDR_START)));
 	} else if (CONFIG_PGTABLE_LEVELS > 3) {
+		// 特殊处理：4 级页表的情况下重新配置 FIXMAP 映射。
 		pgd_t *bm_pgdp;
 		p4d_t *bm_p4dp;
 		pud_t *bm_pudp;
@@ -728,7 +766,8 @@ static void __init map_kernel(pgd_t *pgdp)
 	} else {
 		BUG();
 	}
-
+	// 内核内存访问错误检测工具。
+	// 通过 shadow memory 映射，记录内核地址是否有效。
 	kasan_copy_shadow(pgdp);
 }
 
@@ -1291,12 +1330,14 @@ void __init early_fixmap_init(void)
 void __set_fixmap(enum fixed_addresses idx,
 			       phys_addr_t phys, pgprot_t flags)
 {
+	// 获取该枚举对应 fixmap 中的虚拟地址
 	unsigned long addr = __fix_to_virt(idx);
 	pte_t *ptep;
 
+	//该枚举值不允许超出界限
 	BUG_ON(idx <= FIX_HOLE || idx >= __end_of_fixed_addresses);
 
-	///根据虚拟地址，获取pte页表项，在预先定义的bm_pte
+	///获取该虚拟地址的在bm_pte数组中的所在的index的地址
 	ptep = fixmap_pte(addr);
 
 	if (pgprot_val(flags)) {

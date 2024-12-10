@@ -1963,11 +1963,14 @@ void of_alias_scan(void * (*dt_alloc)(u64 size, u64 align))
 {
 	struct property *pp;
 
+	//查找设备树中的aliases节点
 	of_aliases = of_find_node_by_path("/aliases");
+	//查找chosen节点
 	of_chosen = of_find_node_by_path("/chosen");
 	if (of_chosen == NULL)
 		of_chosen = of_find_node_by_path("/chosen@0");
-
+	
+	// 如果存在chosen节点，其额定linux,stdout-path和stdout的值
 	if (of_chosen) {
 		/* linux,stdout-path and /aliases/stdout are for legacy compatibility */
 		const char *name = NULL;
@@ -1983,7 +1986,8 @@ void of_alias_scan(void * (*dt_alloc)(u64 size, u64 align))
 
 	if (!of_aliases)
 		return;
-
+	
+	//轮询of_aliases节点
 	for_each_property_of_node(of_aliases, pp) {
 		const char *start = pp->name;
 		const char *end = start + strlen(start);
@@ -1992,30 +1996,35 @@ void of_alias_scan(void * (*dt_alloc)(u64 size, u64 align))
 		int id, len;
 
 		/* Skip those we do not want to proceed */
+		//跳过name、phandle、linux,phandle属性
 		if (!strcmp(pp->name, "name") ||
 		    !strcmp(pp->name, "phandle") ||
 		    !strcmp(pp->name, "linux,phandle"))
 			continue;
-
+		//查找aliases中value所在的device_node
 		np = of_find_node_by_path(pp->value);
 		if (!np)
 			continue;
 
 		/* walk the alias backwards to extract the id and work out
 		 * the 'stem' string */
+		//去掉属性name最后的数字
 		while (isdigit(*(end-1)) && end > start)
 			end--;
 		len = end - start;
 
+		//解析id
 		if (kstrtoint(end, 10, &id) < 0)
 			continue;
 
 		/* Allocate an alias_prop with enough space for the stem */
+		//申请一个alias_prop的内粗你，用以存放alias的属性
 		ap = dt_alloc(sizeof(*ap) + len + 1, __alignof__(*ap));
 		if (!ap)
 			continue;
 		memset(ap, 0, sizeof(*ap) + len + 1);
 		ap->alias = start;
+		//将alias_prop插到aliases_lookup的尾部
 		of_alias_add(ap, np, id, start, len);
 	}
 }
