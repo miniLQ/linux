@@ -1242,20 +1242,24 @@ void __init_memblock __next_mem_pfn_range(int *idx, int nid,
 	struct memblock_region *r;
 	int r_nid;
 
+	//遍历 memblock.memory 中的所有区域，type->regions 是一个 memblock_region 数组
 	while (++*idx < type->cnt) {
 		r = &type->regions[*idx];
+		//使用 memblock_get_region_node 获取当前区域的 NUMA 节点编号
 		r_nid = memblock_get_region_node(r);
-
+		//确保当前区域的物理页帧范围有效（base 对齐到上页帧，base + size 对齐到下页帧）
 		if (PFN_UP(r->base) >= PFN_DOWN(r->base + r->size))
 			continue;
+		//若 nid 为 MAX_NUMNODES，则不检查 NUMA 节点；否则需匹配目标节点
 		if (nid == MAX_NUMNODES || nid == r_nid)
 			break;
 	}
+	//如果遍历完数组未找到符合条件的区域，将索引设置为 -1
 	if (*idx >= type->cnt) {
 		*idx = -1;
 		return;
 	}
-
+	//根据需要更新输出参数，分别是起始页帧号、结束页帧号和 NUMA 节点编号
 	if (out_start_pfn)
 		*out_start_pfn = PFN_UP(r->base);
 	if (out_end_pfn)

@@ -1182,25 +1182,29 @@ int __meminit vmemmap_populate(unsigned long start, unsigned long end, int node,
 	pmd_t *pmdp;
 
 	WARN_ON((start < VMEMMAP_START) || (end > VMEMMAP_END));
+	//要对每个 mem_section 对应的空间做vmemmap，开启循环，每次映射的一个pmdsize
 	do {
+		//确定下一次映射的起始地址，偏移pmd size
 		next = pmd_addr_end(addr, end);
 
+		//获取需要映射的地址的pgd
 		pgdp = vmemmap_pgd_populate(addr, node);
 		if (!pgdp)
 			return -ENOMEM;
-
+		
 		p4dp = vmemmap_p4d_populate(pgdp, addr, node);
 		if (!p4dp)
 			return -ENOMEM;
 
+		//对于三级页表来说，pud就是pgd
 		pudp = vmemmap_pud_populate(p4dp, addr, node);
 		if (!pudp)
 			return -ENOMEM;
-
+		//确定该pmd 页表位置，并读取pmdp，确实是否存在 ptep
 		pmdp = pmd_offset(pudp, addr);
 		if (pmd_none(READ_ONCE(*pmdp))) {
 			void *p = NULL;
-
+			//从sparsemap_buf 中申请struct page空间
 			p = vmemmap_alloc_block_buf(PMD_SIZE, node, altmap);
 			if (!p) {
 				if (vmemmap_populate_basepages(addr, next, node, altmap))
