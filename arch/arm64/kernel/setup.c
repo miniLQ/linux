@@ -221,31 +221,43 @@ static void __init request_standard_resources(void)
 	unsigned long i = 0;
 	size_t res_size;
 
-	kernel_code.start   = __pa_symbol(_stext);
+	//内核代码段的起始位置
+	kernel_code.start   = __pa_symbol(_stext); 
+	//内核代码段的结束位置
 	kernel_code.end     = __pa_symbol(__init_begin - 1);
+	//内核数据段的起始位置
 	kernel_data.start   = __pa_symbol(_sdata);
+	//内核数据段的结束位置
 	kernel_data.end     = __pa_symbol(_end - 1);
 
+	// memblock.memory的数量
 	num_standard_resources = memblock.memory.cnt;
 	res_size = num_standard_resources * sizeof(*standard_resources);
+	// 在物理内存中分配空间
 	standard_resources = memblock_alloc(res_size, SMP_CACHE_BYTES);
 	if (!standard_resources)
 		panic("%s: Failed to allocate %zu bytes\n", __func__, res_size);
 
+	// 遍历memblock的每个内存区域
 	for_each_mem_region(region) {
 		res = &standard_resources[i++];
+		// 判断是否为保留区域
 		if (memblock_is_nomap(region)) {
 			res->name  = "reserved";
 			res->flags = IORESOURCE_MEM;
 		} else {
+			// 如果不是保留区域，标记为'System RAM'
 			res->name  = "System RAM";
 			res->flags = IORESOURCE_SYSTEM_RAM | IORESOURCE_BUSY;
 		}
+		// 将页帧编号转换为物理地址
 		res->start = __pfn_to_phys(memblock_region_memory_base_pfn(region));
 		res->end = __pfn_to_phys(memblock_region_memory_end_pfn(region)) - 1;
 
+		// 将内存区域注册到iomem_resource
 		request_resource(&iomem_resource, res);
 
+		// 如果kernel_code和kernel_data的地址范围在当前的内存区域，将其作为子资源注册到对应的System RAM
 		if (kernel_code.start >= res->start &&
 		    kernel_code.end <= res->end)
 			request_resource(res, &kernel_code);
