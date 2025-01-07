@@ -1574,39 +1574,43 @@ static void free_one_page(struct zone *zone,
 static void __meminit __init_single_page(struct page *page, unsigned long pfn,
 				unsigned long zone, int nid)
 {
-	mm_zero_struct_page(page);
-	set_page_links(page, zone, nid, pfn);
-	init_page_count(page);
-	page_mapcount_reset(page);
-	page_cpupid_reset_last(page);
-	page_kasan_tag_reset(page);
+	mm_zero_struct_page(page);	// 将页结构的所有字段清零
+	set_page_links(page, zone, nid, pfn);	// 设置页所属的内存区域、NUMA节点以及页帧号
+	init_page_count(page); // 初始化页的引用计数
+	page_mapcount_reset(page); // 重置页的映射计数，表示该页当前没有映射到用户空间
+	page_cpupid_reset_last(page); // 重置页最近被哪个 CPU 使用的信息，这与 NUMA 和调度优化相关。
+	page_kasan_tag_reset(page); // 重置页的 KASAN（内核地址空间消毒器）标记，用于内存安全检测。
 
 	INIT_LIST_HEAD(&page->lru);
 #ifdef WANT_PAGE_VIRTUAL
 	/* The shift won't overflow because ZONE_NORMAL is below 4G. */
 	if (!is_highmem_idx(zone))
-		set_page_address(page, __va(pfn << PAGE_SHIFT));
+		set_page_address(page, __va(pfn << PAGE_SHIFT)); //为非高端内存页设置虚拟地址，用于快速访问
 #endif
 }
 
 #ifdef CONFIG_DEFERRED_STRUCT_PAGE_INIT
+//主要作用是初始化保留内存页对应的 struct page 结构，包括确定该页所属的节点 (NUMA node)、
+//内存区域 (zone)，并为该页设置其基本属性
 static void __meminit init_reserved_page(unsigned long pfn)
 {
 	pg_data_t *pgdat;
 	int nid, zid;
-
+	// 检查当前页帧编号是否尚未初始化。如果已经初始化，直接返回，不重复初始化
 	if (!early_page_uninitialised(pfn))
 		return;
 
-	nid = early_pfn_to_nid(pfn);
+	nid = early_pfn_to_nid(pfn);	//获取页帧所属的 NUMA 节点 (nid)
 	pgdat = NODE_DATA(nid);
-
+	
+	//遍历节点的所有内存区域 (zone)，找到pfn所在区域时的zid
 	for (zid = 0; zid < MAX_NR_ZONES; zid++) {
 		struct zone *zone = &pgdat->node_zones[zid];
 
 		if (pfn >= zone->zone_start_pfn && pfn < zone_end_pfn(zone))
 			break;
 	}
+	// 初始化单页结构
 	__init_single_page(pfn_to_page(pfn), pfn, zid, nid);
 }
 #else
@@ -1626,21 +1630,24 @@ void __meminit reserve_bootmem_region(phys_addr_t start, phys_addr_t end)
 	unsigned long start_pfn = PFN_DOWN(start);
 	unsigned long end_pfn = PFN_UP(end);
 
+	// 遍历所有的页帧
 	for (; start_pfn < end_pfn; start_pfn++) {
+		// 过滤无效的页帧
 		if (pfn_valid(start_pfn)) {
+			// 将页帧转换为struct page
 			struct page *page = pfn_to_page(start_pfn);
-
+			// 初始化page
 			init_reserved_page(start_pfn);
 
 			/* Avoid false-positive PageTail() */
-			INIT_LIST_HEAD(&page->lru);
+			INIT_LIST_HEAD(&page->lru);	// 初始化lru链表头
 
 			/*
 			 * no need for atomic set_bit because the struct
 			 * page is not visible yet so nobody should
 			 * access it yet.
 			 */
-			__SetPageReserved(page);
+			__SetPageReserved(page); // 标记为保留页
 		}
 	}
 }
@@ -1653,9 +1660,11 @@ static void __free_pages_ok(struct page *page, unsigned int order,
 	unsigned long pfn = page_to_pfn(page);
 	struct zone *zone = page_zone(page);
 
+	// 检查页面是否可以被释放
 	if (!free_pages_prepare(page, order, true, fpi_flags))
 		return;
-
+	
+	// 获取迁移类型
 	migratetype = get_pfnblock_migratetype(page, pfn);
 
 	spin_lock_irqsave(&zone->lock, flags);
@@ -1672,8 +1681,8 @@ static void __free_pages_ok(struct page *page, unsigned int order,
 
 void __free_pages_core(struct page *page, unsigned int order)
 {
-	unsigned int nr_pages = 1 << order;
-	struct page *p = page;
+	unsigned int nr_pages = 1 << order;	//将order转化成页数，大小为2^order页
+	struct page *p = page; // 指向要释放的页的起始地址
 	unsigned int loop;
 
 	/*
@@ -1681,21 +1690,25 @@ void __free_pages_core(struct page *page, unsigned int order)
 	 * of all pages to 1 ("allocated"/"not free"). We have to set the
 	 * refcount of all involved pages to 0.
 	 */
-	prefetchw(p);
+	prefetchw(p); // 预读取， 提前加载页结构到写缓冲区，提升性能
+
+	// 遍历nr_pages页
 	for (loop = 0; loop < (nr_pages - 1); loop++, p++) {
 		prefetchw(p + 1);
-		__ClearPageReserved(p);
-		set_page_count(p, 0);
+		__ClearPageReserved(p); //清除页面的PageReserved标志
+		set_page_count(p, 0); //将页的引用计数置为0
 	}
 	__ClearPageReserved(p);
 	set_page_count(p, 0);
 
+	//更新所属区域 (zone) 的 managed_pages 计数器，表示该区域现在有更多的页可供管理。
 	atomic_long_add(nr_pages, &page_zone(page)->managed_pages);
 
 	/*
 	 * Bypass PCP and place fresh pages right to the tail, primarily
 	 * relevant for memory onlining.
 	 */
+	// 将释放的页加入伙伴系统
 	__free_pages_ok(page, order, FPI_TO_TAIL | FPI_SKIP_KASAN_POISON);
 }
 

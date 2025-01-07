@@ -1060,6 +1060,9 @@ void __next_mem_range(u64 *idx, int nid, enum memblock_flags flags,
 		      struct memblock_type *type_b, phys_addr_t *out_start,
 		      phys_addr_t *out_end, int *out_nid)
 {
+	//参数idx 用以同时标记 memblock.memory的region index和memblock.reserved的region index
+    //idx_a为低32位，标记memblock.memory的region index
+    //idx_b为高32位，标记memblock.reserved的region index
 	int idx_a = *idx & 0xffffffff;
 	int idx_b = *idx >> 32;
 
@@ -1068,15 +1071,23 @@ void __next_mem_range(u64 *idx, int nid, enum memblock_flags flags,
 		nid = NUMA_NO_NODE;
 
 	for (; idx_a < type_a->cnt; idx_a++) {
-		struct memblock_region *m = &type_a->regions[idx_a];
+		struct memblock_region *m = &type_a->regions[idx_a]; //拿到memory中的region
 
-		phys_addr_t m_start = m->base;
-		phys_addr_t m_end = m->base + m->size;
-		int	    m_nid = memblock_get_region_node(m);
+		phys_addr_t m_start = m->base; //拿到memory的region 的起始物理地址
+		phys_addr_t m_end = m->base + m->size; //拿到memory的region 的结束物理地址
+		int	    m_nid = memblock_get_region_node(m); //拿到memory的region 的所属nid
 
+        /**
+          * 确认该region 是否跳过，符合如下情况会跳过：
+          *   1. 参数nid 与region 中的nid 不匹配；
+          *   2. memblock还携带MEMBLOCK_HOTPLUG属性；
+          *   3. 参数flags要求是MEMBLOCK_MIRROR，但该region没有携带；
+          *   4. 参数flags要求不是MEMBLOCK_NOMAP，但该region却携带了MEMBLOCK_NOMAP；
+		  */
 		if (should_skip_region(type_a, m, nid, flags))
 			continue;
-
+		
+		//如果没有reserved，那就将该region 的起始、结束物理地址返回
 		if (!type_b) {
 			if (out_start)
 				*out_start = m_start;
@@ -1090,6 +1101,7 @@ void __next_mem_range(u64 *idx, int nid, enum memblock_flags flags,
 		}
 
 		/* scan areas before each reservation */
+		//开始排除memory中的reserved regions
 		for (; idx_b < type_b->cnt + 1; idx_b++) {
 			struct memblock_region *r;
 			phys_addr_t r_start;
@@ -1107,6 +1119,7 @@ void __next_mem_range(u64 *idx, int nid, enum memblock_flags flags,
 			if (r_start >= m_end)
 				break;
 			/* if the two regions intersect, we're done */
+			// 获取的都是memory 中非reserved 的内存
 			if (m_start < r_end) {
 				if (out_start)
 					*out_start =
@@ -2045,18 +2058,24 @@ static void __init free_unused_memmap(void)
 /* 加入伙伴系统*/
 static void __init __free_pages_memory(unsigned long start, unsigned long end)
 {
-	int order;
-	int count=0;
+	int order; //用于表示当前内存块的阶数，order=n意味着块大小为2^n页
+	int count=0; // 记录释放操作的次数，用于打印日志
 
+	// 遍历从start到end的页帧范围
 	while (start < end) {
+		// MAX_ORDER: 伙伴系统支持的最大阶数
+		// __ffs(start): 计算start的最低有效位，表示从该地址开始，连续对齐的页帧数可以达到的最大阶数
 		order = min(MAX_ORDER - 1UL, __ffs(start));
 
+		// 如果当前结束的内存块大小超出范围，减少阶数
 		while (start + (1UL << order) > end)
 			order--;
 	    count++;
+		// 每释放10次输出一次日志
 		if (count%10==0) {
 			pr_info("---__free_page_memory:start=0x%llx,order=%ld, ffs()=%ld\n",start, order, __ffs(start));
 		}
+		// 将2^order数量的页的内存块释放到伙伴系统中
 		memblock_free_pages(pfn_to_page(start), start, order); ///添加2^order个页到伙伴系统
 
 		start += (1UL << order);
@@ -2085,14 +2104,19 @@ static void __init memmap_init_reserved_pages(void)
 	u64 i;
 
 	/* initialize struct pages for the reserved regions */
+	// 遍历memblock中的reserved内存区域
 	for_each_reserved_mem_range(i, &start, &end)
+		//初始化保留区
 		reserve_bootmem_region(start, end);
 
 	/* and also treat struct pages for the NOMAP regions as PageReserved */
+	// 遍历所有的memblock区域
 	for_each_mem_region(region) {
+		// 如果内存区间为NOMAP类型
 		if (memblock_is_nomap(region)) {
 			start = region->base;
 			end = start + region->size;
+			//也初始化并标记
 			reserve_bootmem_region(start, end);
 		}
 	}
@@ -2104,8 +2128,9 @@ static unsigned long __init free_low_memory_core_early(void)
 	phys_addr_t start, end;
 	u64 i;
 
+	// 清除memblock中的热插拔内存区间
 	memblock_clear_hotplug(0, -1);
-
+	//初始化保留区内存，避免释放保留区
 	memmap_init_reserved_pages();
 
 	/*
@@ -2113,6 +2138,7 @@ static unsigned long __init free_low_memory_core_early(void)
 	 *  because in some case like Node0 doesn't have RAM installed
 	 *  low ram will be on Node1
 	 */
+	// 遍历memblock中所有空闲的内存区间
 	for_each_free_mem_range(i, NUMA_NO_NODE, MEMBLOCK_NONE, &start, &end,
 				NULL)
 		count += __free_memory_core(start, end);  ///加入伙伴系统
@@ -2125,8 +2151,9 @@ static int reset_managed_pages_done __initdata;
 void reset_node_managed_pages(pg_data_t *pgdat)
 {
 	struct zone *z;
-
+	//遍历该node的每一个zone
 	for (z = pgdat->node_zones; z < pgdat->node_zones + MAX_NR_ZONES; z++)
+		//重置zone的managed_pages为0
 		atomic_long_set(&z->managed_pages, 0);
 }
 
@@ -2136,7 +2163,7 @@ void __init reset_all_zones_managed_pages(void)
 
 	if (reset_managed_pages_done)
 		return;
-
+	// 遍历每一个node
 	for_each_online_pgdat(pgdat)
 		reset_node_managed_pages(pgdat);
 
