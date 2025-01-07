@@ -6439,10 +6439,14 @@ static void build_zonelists(pg_data_t *pgdat)
 	struct zoneref *zonerefs;
 	int nr_zones;
 
+	//将当前的node_id 记录在local_node 中，下面for 循环需要知道当前的node id
 	local_node = pgdat->node_id;
 
+	// 将pgdata的_zonerefs的首地址赋值给临时变量zonerefs
 	zonerefs = pgdat->node_zonelists[ZONELIST_FALLBACK]._zonerefs;
+	// 初始化zonerefs
 	nr_zones = build_zonerefs_node(pgdat, zonerefs);
+	// 移到最后进行下一步初始化
 	zonerefs += nr_zones;
 
 	/*
@@ -6453,6 +6457,7 @@ static void build_zonelists(pg_data_t *pgdat)
 	 * zones coming right after the local ones are those from
 	 * node N+1 (modulo N)
 	 */
+	// 初始化其他node 的zone，主要针对NUMA
 	for (node = local_node + 1; node < MAX_NUMNODES; node++) {
 		if (!node_online(node))
 			continue;
@@ -6465,7 +6470,7 @@ static void build_zonelists(pg_data_t *pgdat)
 		nr_zones = build_zonerefs_node(NODE_DATA(node), zonerefs);
 		zonerefs += nr_zones;
 	}
-
+	// 初始化结束后将临时变量置空
 	zonerefs->zone = NULL;
 	zonerefs->zone_idx = 0;
 }
