@@ -97,9 +97,10 @@ static int elf_core_dump(struct coredump_params *cprm);
 #define ELF_PAGEOFFSET(_v) ((_v) & (ELF_MIN_ALIGN-1))
 #define ELF_PAGEALIGN(_v) (((_v) + ELF_MIN_ALIGN - 1) & ~(ELF_MIN_ALIGN - 1))
 
+//ELF文件加载器
 static struct linux_binfmt elf_format = {
 	.module		= THIS_MODULE,
-	.load_binary	= load_elf_binary,
+	.load_binary	= load_elf_binary,//ELF文件加载的入口
 	.load_shlib	= load_elf_library,
 	.core_dump	= elf_core_dump,
 	.min_coredump	= ELF_EXEC_PAGESIZE,
@@ -820,6 +821,21 @@ static int parse_elf_properties(struct file *f, const struct elf_phdr *phdr,
 	return ret == -ENOENT ? 0 : ret;
 }
 
+/*
+ load_elf_binary()
+这个函数是加载ELF文件最关键的函数了，它主要完成了以下几步：
+  1. ELF文件头读取。检查Magic Number，确认合法性；检查ELF文件类型；检查文件头中的一些信息。
+  2. Program Header读取，这样就获得了各segment的信息。
+  3. 如果需要动态链接（判断segment当中有没有名为INTERP的），如果有，则读取相关segment信息，通过解释器
+  （interpretor）来打开对应的动态链接文件。如果没有动态链接，那么正常情况程序将从ELF文件头部的入口地址开始执行，
+  如果有动态链接，先执行动态链接，再回到程序入口。
+  4. 调用begin_new_exec(bprm)，清空父进程继承来的虚拟地址空间等资源。（之前已经创建了新的mm_struct，需要把旧的给删掉）
+  5. 找到需要加载到内存的LOAD segment段，将段按照其地址、权限和对齐要求加载通过elf_map(底层调用vm_mmap)到虚拟地址空间。
+  但这个步骤只是把段映射到虚拟地址空间上，与物理内存无关，因此访问到这些虚拟地址的时候还是会发生缺页，之后会分配物理页。
+  （不过好像.bss相关的内容一开始就会分配物理页，有待考证）
+  6. 设置程序的入口地址，如果需要动态链接，那么将入口地址设置为动态链接文件的入口地址，之后会跳转回本ELF文件的入口地址。
+  如果不需要动态链接，那么就是ELF文件头部包含的入口地址。
+  7. 调用START_THREAD跳转到程序入口点，启动程序。*/
 static int load_elf_binary(struct linux_binprm *bprm)
 {
 	struct file *interpreter = NULL; /* to shut gcc up */
@@ -837,6 +853,7 @@ static int load_elf_binary(struct linux_binprm *bprm)
 	unsigned long start_code, end_code, start_data, end_data;
 	unsigned long reloc_func_desc __maybe_unused = 0;
 	int executable_stack = EXSTACK_DEFAULT;
+	//读取ELF文件头
 	struct elfhdr *elf_ex = (struct elfhdr *)bprm->buf;
 	struct elfhdr *interp_elf_ex = NULL;
 	struct arch_elf_state arch_state = INIT_ARCH_ELF_STATE;
@@ -857,6 +874,7 @@ static int load_elf_binary(struct linux_binprm *bprm)
 	if (!bprm->file->f_op->mmap)
 		goto out;
 
+	//读取program headers,该函数内部会为elf_phdata分配内存空间（使用kmalloc）
 	elf_phdata = load_elf_phdrs(elf_ex, bprm->file);
 	if (!elf_phdata)
 		goto out;
@@ -870,6 +888,7 @@ static int load_elf_binary(struct linux_binprm *bprm)
 			continue;
 		}
 
+	//由此可见这个循环的目的似乎是找到类型为解释器（INTERP）的segment
 		if (elf_ppnt->p_type != PT_INTERP)
 			continue;
 
@@ -882,6 +901,7 @@ static int load_elf_binary(struct linux_binprm *bprm)
 			goto out_free_ph;
 
 		retval = -ENOMEM;
+		//为elf_interpreter（解释器信息）分配内存。
 		elf_interpreter = kmalloc(elf_ppnt->p_filesz, GFP_KERNEL);
 		if (!elf_interpreter)
 			goto out_free_ph;
@@ -895,6 +915,7 @@ static int load_elf_binary(struct linux_binprm *bprm)
 		if (elf_interpreter[elf_ppnt->p_filesz - 1] != '\0')
 			goto out_free_interp;
 
+	/*打开解释器对应的动态链接文件*/
 		interpreter = open_exec(elf_interpreter);
 		kfree(elf_interpreter);
 		retval = PTR_ERR(interpreter);
@@ -946,6 +967,7 @@ out_free_interp:
 		}
 
 	/* Some simple consistency checks for the interpreter */
+	/*对解释器进行检查，重复一遍，解释器用于加载和处理动态链接文件（通常为.so)*/
 	if (interpreter) {
 		retval = -ELIBBAD;
 		/* Not an ELF interpreter */
@@ -997,7 +1019,8 @@ out_free_interp:
 	if (retval)
 		goto out_free_dentry;
 
-	/* Flush all traces of the currently running executable */
+	/* Flush all traces of the currently running executable 
+	清除当前可执行文件的痕迹，内部会把从父进程复制来的一些信息删除，如mm_struct*/
 	retval = begin_new_exec(bprm);
 	if (retval)
 		goto out_free_dentry;
@@ -1029,7 +1052,8 @@ out_free_interp:
 	end_data = 0;
 
 	/* Now we do a little grungy work by mmapping the ELF image into
-	   the correct location in memory. */
+	   the correct location in memory.
+	   这个循环用于加载（映射）ELF中的数据到虚拟地址空间 */
 	for(i = 0, elf_ppnt = elf_phdata;
 	    i < elf_ex->e_phnum; i++, elf_ppnt++) {
 		int elf_prot, elf_flags;
@@ -1037,6 +1061,7 @@ out_free_interp:
 		unsigned long total_size = 0;
 		unsigned long alignment;
 
+	/*加载到虚拟内存空间的SEGMENT类型必须为LOAD*/
 		if (elf_ppnt->p_type != PT_LOAD)
 			continue;
 
@@ -1137,7 +1162,7 @@ out_free_interp:
 				goto out_free_dentry;
 			}
 		}
-
+	/*elf_map底层会调用vm_mmap,这个步骤就是程序文件中的各segment映射到虚拟地址空间*/
 		error = elf_map(bprm->file, load_bias + vaddr, elf_ppnt,
 				elf_prot, elf_flags, total_size);
 		if (BAD_ADDR(error)) {
@@ -1157,6 +1182,7 @@ out_free_interp:
 			}
 		}
 		k = elf_ppnt->p_vaddr;
+		/*设置mm_struct中的一些参数*/
 		if ((elf_ppnt->p_flags & PF_X) && k < start_code)
 			start_code = k;
 		if (start_data < k)
@@ -1212,6 +1238,7 @@ out_free_interp:
 	}
 
 	if (interpreter) {
+	/*如果有解释器存在，说明需要动态链接，那么elf_entry也即elf文件的入口将被设置为动态链接文件的入口地址*/
 		elf_entry = load_elf_interp(interp_elf_ex,
 					    interpreter,
 					    load_bias, interp_elf_phdata,
@@ -1237,6 +1264,7 @@ out_free_interp:
 		kfree(interp_elf_ex);
 		kfree(interp_elf_phdata);
 	} else {
+	/*如果没有动态链接器，程序入口地址就是ELF头部存放的入口地址*/
 		elf_entry = e_entry;
 		if (BAD_ADDR(elf_entry)) {
 			retval = -EINVAL;
@@ -1259,6 +1287,7 @@ out_free_interp:
 	if (retval < 0)
 		goto out;
 
+	/*设置mm_struct信息*/
 	mm = current->mm;
 	mm->end_code = end_code;
 	mm->start_code = start_code;
@@ -1310,6 +1339,7 @@ out_free_interp:
 #endif
 
 	finalize_exec(bprm);
+	/*启动程序*/
 	START_THREAD(elf_ex, regs, elf_entry, bprm->p);
 	retval = 0;
 out:
@@ -2296,6 +2326,7 @@ end_coredump:
 
 #endif		/* CONFIG_ELF_CORE */
 
+//ELF文件加载器初始化
 static int __init init_elf_binfmt(void)
 {
 	register_binfmt(&elf_format);
