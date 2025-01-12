@@ -123,6 +123,8 @@ static int set_brk(unsigned long start, unsigned long end, int prot)
 		if (error)
 			return error;
 	}
+	/*初始化堆的指针，一开始堆是空的，因此堆的起始地址start_brk和brk都为一个值
+	使用malloc的时候会改变brk相关指针的位置*/
 	current->mm->start_brk = current->mm->brk = end;
 	return 0;
 }
@@ -1071,6 +1073,7 @@ out_free_interp:
 			/* There was a PT_LOAD segment with p_memsz > p_filesz
 			   before this one. Map anonymous pages, if needed,
 			   and clear the area.  */
+			//该函数内部似乎完成了对于bss段地址的映射
 			retval = set_brk(elf_bss + load_bias,
 					 elf_brk + load_bias,
 					 bss_prot);
