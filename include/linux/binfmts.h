@@ -13,16 +13,17 @@ struct filename;
 
 /*
  * This structure is used to hold the arguments that are used when loading binaries.
+	这个结构体对于加载二进制文件而言非常重要，保存了所有重要的参数以及信息。
  */
 struct linux_binprm {
 #ifdef CONFIG_MMU
-	struct vm_area_struct *vma;
-	unsigned long vma_pages;
+	struct vm_area_struct *vma;//二进制文件加载后对应的虚拟内存区域
+	unsigned long vma_pages;//分配给虚拟内存的页面数
 #else
 # define MAX_ARG_PAGES	32
 	struct page *page[MAX_ARG_PAGES];
 #endif
-	struct mm_struct *mm;
+	struct mm_struct *mm;//虚拟内存空间结构体
 	unsigned long p; /* current top of mem */
 	unsigned long argmin; /* rlimit marker for copy_strings() */
 	unsigned int
@@ -46,8 +47,8 @@ struct linux_binprm {
 	unsigned int taso:1;
 #endif
 	struct file *executable; /* Executable to pass to the interpreter */
-	struct file *interpreter;
-	struct file *file;
+	struct file *interpreter;//解释器文件，即动态链接库文件
+	struct file *file;//指向对应的可执行文件。
 	struct cred *cred;	/* new credentials */
 	int unsafe;		/* how unsafe this exec is (mask of LSM_UNSAFE_*) */
 	unsigned int per_clear;	/* bits to clear in current->personality */
@@ -63,7 +64,7 @@ struct linux_binprm {
 
 	struct rlimit rlim_stack; /* Saved RLIMIT_STACK used during exec. */
 
-	char buf[BINPRM_BUF_SIZE];
+	char buf[BINPRM_BUF_SIZE];//可执行文件开始的256字节缓存。
 } __randomize_layout;
 
 #define BINPRM_FLAGS_ENFORCE_NONDUMP_BIT 0
@@ -92,6 +93,8 @@ struct coredump_params {
 /*
  * This structure defines the functions that are used to load the binary formats that
  * linux accepts.
+ * 这个是Linux的二进制文件加载器结构体,用于描述Linux下的二进制文件加载器，根据不同类型可以有很多种
+ * 由一个全局链表进行管理。
  */
 struct linux_binfmt {
 	struct list_head lh;

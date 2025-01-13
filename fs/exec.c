@@ -82,6 +82,8 @@ int suid_dumpable = 0;
 static LIST_HEAD(formats);
 static DEFINE_RWLOCK(binfmt_lock);
 
+/*注册二进制文件加载器，将加载器加入全局链表。根据insert的值判断是否要加到链表的头部。
+之后Linux需要加载二进制文件时，会遍历全局链表，根据文件类型选择合适的加载器*/
 void __register_binfmt(struct linux_binfmt * fmt, int insert)
 {
 	write_lock(&binfmt_lock);
@@ -251,9 +253,11 @@ static int __bprm_mm_init(struct linux_binprm *bprm)
 	struct vm_area_struct *vma = NULL;
 	struct mm_struct *mm = bprm->mm;
 
+	/*申请一段虚拟地址范围，该函数内部调用kmem_cache_alloc(vm_area_cachep, GFP_KERNEL);*/
 	bprm->vma = vma = vm_area_alloc(mm);
 	if (!vma)
 		return -ENOMEM;
+	/*设置为匿名*/
 	vma_set_anonymous(vma);
 
 	if (mmap_write_lock_killable(mm)) {
@@ -269,10 +273,12 @@ static int __bprm_mm_init(struct linux_binprm *bprm)
 	 */
 	BUILD_BUG_ON(VM_STACK_FLAGS & VM_STACK_INCOMPLETE_SETUP);
 	vma->vm_end = STACK_TOP_MAX;
+	/*这个虚拟地址段的大小为一个PAGE（4KB）*/
 	vma->vm_start = vma->vm_end - PAGE_SIZE;
 	vma->vm_flags = VM_SOFTDIRTY | VM_STACK_FLAGS | VM_STACK_INCOMPLETE_SETUP;
 	vma->vm_page_prot = vm_get_page_prot(vma->vm_flags);
 
+	/*将申请得到的这段虚拟地址空间放入虚拟地址空间对象去管理*/
 	err = insert_vm_struct(mm, vma);
 	if (err)
 		goto err;
@@ -365,6 +371,9 @@ static int bprm_mm_init(struct linux_binprm *bprm)
 	int err;
 	struct mm_struct *mm = NULL;
 
+	/*分配一个全新的mm_struct结构体，这个函数内部会调用allocate_mm()
+	#define allocate_mm()	(kmem_cache_alloc(mm_cachep, GFP_KERNEL))
+	从slab内存池当中给这个mm_struct分配空间*/
 	bprm->mm = mm = mm_alloc();
 	err = -ENOMEM;
 	if (!mm)
@@ -1500,8 +1509,10 @@ static void free_bprm(struct linux_binprm *bprm)
 	kfree(bprm);
 }
 
+//初始化linux_binprm
 static struct linux_binprm *alloc_bprm(int fd, struct filename *filename)
 {
+	//为bprm分配内存空间
 	struct linux_binprm *bprm = kzalloc(sizeof(*bprm), GFP_KERNEL);
 	int retval = -ENOMEM;
 	if (!bprm)
@@ -1522,6 +1533,7 @@ static struct linux_binprm *alloc_bprm(int fd, struct filename *filename)
 	}
 	bprm->interp = bprm->filename;
 
+	//申请一个全新的mm_struct
 	retval = bprm_mm_init(bprm);
 	if (retval)
 		goto out_free;
@@ -1706,6 +1718,7 @@ static int search_binary_handler(struct linux_binprm *bprm)
 	struct linux_binfmt *fmt;
 	int retval;
 
+	/*读取可执行文件头部，之前已经保存到bprm的buf当中*/
 	retval = prepare_binprm(bprm);
 	if (retval < 0)
 		return retval;
@@ -1717,11 +1730,14 @@ static int search_binary_handler(struct linux_binprm *bprm)
 	retval = -ENOENT;
  retry:
 	read_lock(&binfmt_lock);
+	/*遍历二进制加载器链表来选择合适的加载器*/
 	list_for_each_entry(fmt, &formats, lh) {
 		if (!try_module_get(fmt->module))
 			continue;
 		read_unlock(&binfmt_lock);
 
+		/*遍历时调用当前加载器的load_binary函数尝试加载，对于ELF文件来说
+		会调用到ELF加载器的load_elf_binary,搞了半天，原来在这儿啊*/
 		retval = fmt->load_binary(bprm);
 
 		read_lock(&binfmt_lock);
@@ -1763,12 +1779,15 @@ static int exec_binprm(struct linux_binprm *bprm)
 		if (depth > 5)
 			return -ELOOP;
 
+	//该函数会遍历加载器，根据文件选择合适的bin加载器
 		ret = search_binary_handler(bprm);
 		if (ret < 0)
 			return ret;
+	/*intepretor代表解释器，用于加载动态链接文件，如果这里有值，
+	说明程序运行的时候还需要加载动态链接库*/
 		if (!bprm->interpreter)
 			break;
-
+	/*修改相关的参数*/
 		exec = bprm->file;
 		bprm->file = bprm->interpreter;
 		bprm->interpreter = NULL;
@@ -1793,6 +1812,7 @@ static int exec_binprm(struct linux_binprm *bprm)
 
 /*
  * sys_execve() executes a new program.
+ 这个函数是对exec_binprm的包装
  */
 static int bprm_execve(struct linux_binprm *bprm,
 		       int fd, struct filename *filename, int flags)
@@ -1800,6 +1820,7 @@ static int bprm_execve(struct linux_binprm *bprm,
 	struct file *file;
 	int retval;
 
+	//似乎是和加密以及安全相关的操作
 	retval = prepare_bprm_creds(bprm);
 	if (retval)
 		return retval;
@@ -1807,11 +1828,13 @@ static int bprm_execve(struct linux_binprm *bprm,
 	check_unsafe_exec(bprm);
 	current->in_execve = 1;
 
+	//打开可执行文件
 	file = do_open_execat(fd, filename, flags);
 	retval = PTR_ERR(file);
 	if (IS_ERR(file))
 		goto out_unmark;
 
+	//处理调度相关信息
 	sched_exec();
 
 	bprm->file = file;
@@ -1832,6 +1855,7 @@ static int bprm_execve(struct linux_binprm *bprm,
 	if (retval)
 		goto out;
 
+	//核心函数
 	retval = exec_binprm(bprm);
 	if (retval < 0)
 		goto out;
@@ -1861,12 +1885,14 @@ out_unmark:
 	return retval;
 }
 
+/*execve的核心函数，该函数会创建linux_binprm结构体变量bprm，并保存可执行文件的关键参数
+到bprm中，最终调用bprm_execve来执行加载*/
 static int do_execveat_common(int fd, struct filename *filename,
 			      struct user_arg_ptr argv,
 			      struct user_arg_ptr envp,
 			      int flags)
 {
-	struct linux_binprm *bprm;
+	struct linux_binprm *bprm;//此结构用于保存加载二进制文件时用到的参数。
 	int retval;
 
 	if (IS_ERR(filename))
@@ -1888,7 +1914,7 @@ static int do_execveat_common(int fd, struct filename *filename,
 	 * further execve() calls fail. */
 	current->flags &= ~PF_NPROC_EXCEEDED;
 
-	bprm = alloc_bprm(fd, filename);
+	bprm = alloc_bprm(fd, filename);//申请并初始化bprm对象值
 	if (IS_ERR(bprm)) {
 		retval = PTR_ERR(bprm);
 		goto out_ret;
@@ -1908,6 +1934,7 @@ static int do_execveat_common(int fd, struct filename *filename,
 	if (retval < 0)
 		goto out_free;
 
+/*往bprm结构存入关键信息*/
 	retval = copy_string_kernel(bprm->filename, bprm);
 	if (retval < 0)
 		goto out_free;
@@ -1921,6 +1948,7 @@ static int do_execveat_common(int fd, struct filename *filename,
 	if (retval < 0)
 		goto out_free;
 
+	/*执行加载*/
 	retval = bprm_execve(bprm, fd, filename, flags);
 out_free:
 	free_bprm(bprm);
