@@ -4279,6 +4279,7 @@ static void __init init_mount_tree(void)
 	struct mnt_namespace *ns;
 	struct path root;
 
+/// 创建一个文件系统（rootfs）实例(基于内存), 这个fs实例只有一个根目录
 	mnt = vfs_kern_mount(&rootfs_fs_type, 0, "rootfs", NULL);
 	if (IS_ERR(mnt))
 		panic("Can't create rootfs");
@@ -4295,9 +4296,11 @@ static void __init init_mount_tree(void)
 	get_mnt_ns(ns);
 
 	root.mnt = mnt;
+	/// 获取rootfs文件系统的根目录
 	root.dentry = mnt->mnt_root;
 	mnt->mnt_flags |= MNT_LOCKED;
 
+	///	设置当前进程的当前目录和根目录，都指向rootfs的根目录
 	set_fs_pwd(current->fs, &root);
 	set_fs_root(current->fs, &root);
 }

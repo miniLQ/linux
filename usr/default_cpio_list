@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # This is a very simple, default initramfs
 
+# 默认内置initramfs配置文件
 dir /dev 0755 0 0
 nod /dev/console 0600 0 0 c 5 1
 dir /root 0700 0 0

@@ -159,6 +159,7 @@ int current_umask(void)
 }
 EXPORT_SYMBOL(current_umask);
 
+///未定义根目录及当前目录
 /* to be mentioned only in INIT_TASK */
 struct fs_struct init_fs = {
 	.users		= 1,

@@ -1,0 +1,1 @@
+qemu-system-aarch64 -machine virt -cpu cortex-a57 -machine type=virt -m 1024 -smp 1 -kernel arch/arm64/boot/Image --append "rdinit=hello console=ttyAMA0 loglevel=8" -initrd test/helloinitramfs -nographic

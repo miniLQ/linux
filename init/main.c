@@ -1534,7 +1534,10 @@ static int __ref kernel_init(void *unused)
 	if (ramdisk_execute_command) {
 		///启动参数传入"rdinit=/linuxrc"
 		///在busybox解析，
-		ret = run_init_process(ramdisk_execute_command);  ///尝试执行指定init程序
+		// ramdisk_execute_command不为空，检测到initramfs
+		// 尝试执行指定init程序 /init, init是一个过度脚本，
+		// 会挂载真正的根文件系统,并执行其init程序
+		ret = run_init_process(ramdisk_execute_command); 
 		if (!ret)
 			return 0;
 		pr_err("Failed to execute %s (error %d)\n",
@@ -1547,6 +1550,7 @@ static int __ref kernel_init(void *unused)
 	 * The Bourne shell can be used instead of init if we are
 	 * trying to recover a really broken machine.
 	 */
+	 /// 未支持initramfs，直接去尝试真正根文件系统的init程序
 	if (execute_command) {
 		ret = run_init_process(execute_command);
 		if (!ret)
@@ -1611,8 +1615,10 @@ static noinline void __init kernel_init_freeable(void)
 	do_pre_smp_initcalls();
 	lockup_detector_init();
 
-	smp_init();        ///初始化smp机制，平台相关
-	sched_init_smp();  ///初始化smp调度
+	///初始化smp机制，平台相关
+	smp_init();	
+	///初始化smp调度
+	sched_init_smp();  
 
 	padata_init();
 	page_alloc_init_late();
@@ -1633,6 +1639,7 @@ static noinline void __init kernel_init_freeable(void)
 	 ///check是否有用户空间init程序可以执行
 	if (init_eaccess(ramdisk_execute_command) != 0) {
 		ramdisk_execute_command = NULL;
+		/// 如果没有定义init,解析root传入参数，并挂载其指向的根文件系统
 		prepare_namespace();
 	}
 

@@ -1366,11 +1366,9 @@ struct task_struct {
 #endif
 #ifdef CONFIG_CGROUPS
 	/* Control Group info protected by css_set_lock: */
-	///关联cgroup
-	struct css_set __rcu		*cgroups;
+	struct css_set __rcu		*cgroups; ///与进程相关的cgroup信息
 	/* cg_list protected by css_set_lock and tsk->alloc_lock: */
-	///同一个cgroup/css_set，所有进程链表
-	struct list_head		cg_list;
+	struct list_head		cg_list; ///同一个css_set里所有进程，连成一个链表
 #endif
 #ifdef CONFIG_X86_CPU_RESCTRL
 	u32				closid;
