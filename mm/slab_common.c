@@ -153,19 +153,21 @@ static unsigned int calculate_alignment(slab_flags_t flags,
 	 * The hardware cache alignment cannot override the specified
 	 * alignment though. If that is greater then use it.
 	 */
+	//在指定对齐值之前会判断 flags 是否设定了硬件cache 对齐方式，如果设定了硬件对齐方式，则
 	if (flags & SLAB_HWCACHE_ALIGN) {
 		unsigned int ralign;
 
-		ralign = cache_line_size();
+		ralign = cache_line_size(); //获取L1 cache line的大小，一般是64或32字节
+		//如果size 太小，会找出最小的对齐值，当size 大于硬件cache对齐值时，会去align 和 ralign中最大值
 		while (size <= ralign / 2)
 			ralign /= 2;
 		align = max(align, ralign);
 	}
 
-	if (align < ARCH_SLAB_MINALIGN)
+	if (align < ARCH_SLAB_MINALIGN)  //align 不能太小，最小也要8字节
 		align = ARCH_SLAB_MINALIGN;
 
-	return ALIGN(align, sizeof(void *));
+	return ALIGN(align, sizeof(void *)); // ALIGN是让 align按照8个字节边界对齐，即最后取值是8的整数倍
 }
 
 /*
@@ -645,7 +647,7 @@ void __init create_boot_cache(struct kmem_cache *s, const char *name,
 		unsigned int useroffset, unsigned int usersize)
 {
 	int err;
-	unsigned int align = ARCH_KMALLOC_MINALIGN;
+	unsigned int align = ARCH_KMALLOC_MINALIGN; //默认对齐是 128字节
 
 	s->name = name;
 	s->size = s->object_size = size;
@@ -654,6 +656,8 @@ void __init create_boot_cache(struct kmem_cache *s, const char *name,
 	 * For power of two sizes, guarantee natural alignment for kmalloc
 	 * caches, regardless of SL*B debugging options.
 	 */
+	// 计算 align，首先如果size 是2的整数幂，那么最小的align 为初始值128，
+	// 如果不是2的整数幂，则通过calculate_alignment函数计算
 	if (is_power_of_2(size))
 		align = max(align, size);
 	s->align = calculate_alignment(flags, align, size);
@@ -661,12 +665,14 @@ void __init create_boot_cache(struct kmem_cache *s, const char *name,
 	s->useroffset = useroffset;
 	s->usersize = usersize;
 
+	// 创建slab 描述符的核心函数
 	err = __kmem_cache_create(s, flags);
 
 	if (err)
 		panic("Creation of kmalloc slab %s size=%u failed. Reason %d\n",
 					name, size, err);
 
+	// 初始化kmeme cache 引用计数为-1
 	s->refcount = -1;	/* Exempt from merging for now */
 }
 
@@ -674,13 +680,17 @@ struct kmem_cache *__init create_kmalloc_cache(const char *name,
 		unsigned int size, slab_flags_t flags,
 		unsigned int useroffset, unsigned int usersize)
 {
+    // 通过kmem_cache_zalloc()申请kmem_cache
 	struct kmem_cache *s = kmem_cache_zalloc(kmem_cache, GFP_NOWAIT);
 
 	if (!s)
 		panic("Out of memory when creating slab %s\n", name);
 
+    // 调用create_boot_cache()创建kmem_cache以及依赖的kmem_cache_node
+    // 注意这里的usersize从上层创来，为kmalloc_info 中定义的size，同第三个参数
 	create_boot_cache(s, name, size, flags, useroffset, usersize);
 	kasan_cache_create_kmalloc(s);
+	// 创建好的slab cache，添加到slab_caches列表中
 	list_add(&s->list, &slab_caches);
 	s->refcount = 1;
 	return s;
@@ -821,6 +831,8 @@ void __init setup_kmalloc_cache_index_table(void)
 {
 	unsigned int i;
 
+
+    // 需要 KMALLOC_MIN_SIZE小于256，且该值必须要为2的整数幂，否则编译会报错
 	BUILD_BUG_ON(KMALLOC_MIN_SIZE > 256 ||
 		(KMALLOC_MIN_SIZE & (KMALLOC_MIN_SIZE - 1)));
 
@@ -830,7 +842,7 @@ void __init setup_kmalloc_cache_index_table(void)
 		if (elem >= ARRAY_SIZE(size_index))
 			break;
 		size_index[elem] = KMALLOC_SHIFT_LOW;
-	}
+	} // 从8到KMALLOC_MIN_SIZE，除以8计算下表，然后数组的值设为KMALLOC_SHIFT_LOW
 
 	if (KMALLOC_MIN_SIZE >= 64) {
 		/*
@@ -840,7 +852,7 @@ void __init setup_kmalloc_cache_index_table(void)
 		for (i = 64 + 8; i <= 96; i += 8)
 			size_index[size_index_elem(i)] = 7;
 
-	}
+	} // 当KMALLOC_MIN_SIZE >= 64时，强制下标为7~11的数改成7
 
 	if (KMALLOC_MIN_SIZE >= 128) {
 		/*
@@ -850,7 +862,7 @@ void __init setup_kmalloc_cache_index_table(void)
 		 */
 		for (i = 128 + 8; i <= 192; i += 8)
 			size_index[size_index_elem(i)] = 8;
-	}
+	} // 若KMALLOC_MIN_SIZE >=128时，强制下标为16~23的数改成8
 }
 
 static void __init
@@ -889,19 +901,14 @@ void __init create_kmalloc_caches(slab_flags_t flags)
 	int i;
 	enum kmalloc_cache_type type;
 
-	/*
-	 * Including KMALLOC_CGROUP if CONFIG_MEMCG_KMEM defined
-	 */
+	//初始化kmalloc_cache_type为KMALLOC_NORMAL和KMALLOC_RECLAIM的kmalloc cache
+	//注意，第二层for循环，从下标7~13，即每个kmalloc_cache_type各创建7个kmalloc cache，且存放在数组后7个元素中
 	for (type = KMALLOC_NORMAL; type <= KMALLOC_RECLAIM; type++) {
 		for (i = KMALLOC_SHIFT_LOW; i <= KMALLOC_SHIFT_HIGH; i++) {
 			if (!kmalloc_caches[type][i])
-				new_kmalloc_cache(i, type, flags);
+				new_kmalloc_cache(i, type, flags);  // 申请新的kmem_cache
 
-			/*
-			 * Caches that are not of the two-to-the-power-of size.
-			 * These have to be created immediately after the
-			 * earlier power of two caches
-			 */
+			// 对于更小的kmalloc size，单独创建两个kmem_cache保存在每个type的[1]和[2]处
 			if (KMALLOC_MIN_SIZE <= 32 && i == 6 &&
 					!kmalloc_caches[type][1])
 				new_kmalloc_cache(1, type, flags);
@@ -911,10 +918,12 @@ void __init create_kmalloc_caches(slab_flags_t flags)
 		}
 	}
 
-	/* Kmalloc array is now usable */
+	//初始化完kamlloc_caches，此时slab_state从PARTIAL变为UP，slab缓存基本功能算完成
 	slab_state = UP;
 
 #ifdef CONFIG_ZONE_DMA
+    // 如果定义了CONFIG_ZONE_DMA，则会初始化kmalloc_cache_type为KMALLOC_DMA的kmalloc cache
+    // DMA 取名为dma-kmalloc-x，x为size大小组成
 	for (i = 0; i <= KMALLOC_SHIFT_HIGH; i++) {
 		struct kmem_cache *s = kmalloc_caches[KMALLOC_NORMAL][i];
 
@@ -1007,13 +1016,16 @@ int cache_random_seq_create(struct kmem_cache *cachep, unsigned int count,
 	if (count < 2 || cachep->random_seq)
 		return 0;
 
+	// 通过kmalloc 分配一个连续的零页空间
 	cachep->random_seq = kcalloc(count, sizeof(unsigned int), gfp);
 	if (!cachep->random_seq)
 		return -ENOMEM;
 
 	/* Get best entropy at this stage of boot */
 	prandom_seed_state(&state, get_random_long());
-
+   
+    // random_seq通过上面申请了count*int 空间的连续空间，类似数组
+    // random_seq[i]存放0~count的下标值，然后打乱，打乱后random_seq[0]存放的可能不是0，而是count-1
 	freelist_randomize(&state, cachep->random_seq, count);
 	return 0;
 }

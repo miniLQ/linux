@@ -489,6 +489,9 @@ static inline struct kmem_cache *slab_pre_alloc_hook(struct kmem_cache *s,
 {
 	flags &= gfp_allowed_mask;
 
+	// 在分配slab object时，线程可能会睡眠。比如GFP_KERNEL，这个GFP就会允许睡眠，及时的将CPU资源让给其他线程，
+    // 例子：当分配slab 对象需要重新从buddy system重新获取page，然后创建一个slab缓存，再将object分配出去时，
+    // 耗时会比较长，此时可以将CPU让出，让其他线程使用，当object可以获得时，再唤醒
 	might_alloc(flags);
 
 	if (should_failslab(s, flags))
